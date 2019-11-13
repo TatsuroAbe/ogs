@@ -22,10 +22,10 @@
 
 namespace ProcessLib
 {
-namespace HydroMechanics
+namespace PhaseFieldAcid
 {
 template <int DisplacementDim>
-HydroMechanicsProcess<DisplacementDim>::HydroMechanicsProcess(
+PhaseFieldAcidProcess<DisplacementDim>::PhaseFieldAcidProcess(
     std::string name,
     MeshLib::Mesh& mesh,
     std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
@@ -33,7 +33,7 @@ HydroMechanicsProcess<DisplacementDim>::HydroMechanicsProcess(
     unsigned const integration_order,
     std::vector<std::vector<std::reference_wrapper<ProcessVariable>>>&&
         process_variables,
-    HydroMechanicsProcessData<DisplacementDim>&& process_data,
+    PhaseFieldAcidProcessData<DisplacementDim>&& process_data,
     SecondaryVariableCollection&& secondary_variables,
     bool const use_monolithic_scheme)
     : Process(std::move(name), mesh, std::move(jacobian_assembler), parameters,
@@ -89,14 +89,14 @@ HydroMechanicsProcess<DisplacementDim>::HydroMechanicsProcess(
 }
 
 template <int DisplacementDim>
-bool HydroMechanicsProcess<DisplacementDim>::isLinear() const
+bool PhaseFieldAcidProcess<DisplacementDim>::isLinear() const
 {
     return false;
 }
 
 template <int DisplacementDim>
 MathLib::MatrixSpecifications
-HydroMechanicsProcess<DisplacementDim>::getMatrixSpecifications(
+PhaseFieldAcidProcess<DisplacementDim>::getMatrixSpecifications(
     const int process_id) const
 {
     // For the monolithic scheme or the M process (deformation) in the staggered
@@ -115,7 +115,7 @@ HydroMechanicsProcess<DisplacementDim>::getMatrixSpecifications(
 }
 
 template <int DisplacementDim>
-void HydroMechanicsProcess<DisplacementDim>::constructDofTable()
+void PhaseFieldAcidProcess<DisplacementDim>::constructDofTable()
 {
     // Create single component dof in every of the mesh's nodes.
     _mesh_subset_all_nodes =
@@ -191,15 +191,15 @@ void HydroMechanicsProcess<DisplacementDim>::constructDofTable()
 }
 
 template <int DisplacementDim>
-void HydroMechanicsProcess<DisplacementDim>::initializeConcreteProcess(
+void PhaseFieldAcidProcess<DisplacementDim>::initializeConcreteProcess(
     NumLib::LocalToGlobalIndexMap const& dof_table,
     MeshLib::Mesh const& mesh,
     unsigned const integration_order)
 {
     const int mechanical_process_id = _use_monolithic_scheme ? 0 : 1;
     const int deformation_variable_id = _use_monolithic_scheme ? 1 : 0;
-    ProcessLib::HydroMechanics::createLocalAssemblers<
-        DisplacementDim, HydroMechanicsLocalAssembler>(
+    ProcessLib::PhaseFieldAcid::createLocalAssemblers<
+        DisplacementDim, PhaseFieldAcidLocalAssembler>(
         mesh.getDimension(), mesh.getElements(), dof_table,
         // use displacement process variable to set shape function order
         getProcessVariables(mechanical_process_id)[deformation_variable_id]
@@ -362,7 +362,7 @@ void HydroMechanicsProcess<DisplacementDim>::initializeConcreteProcess(
 }
 
 template <int DisplacementDim>
-void HydroMechanicsProcess<DisplacementDim>::initializeBoundaryConditions()
+void PhaseFieldAcidProcess<DisplacementDim>::initializeBoundaryConditions()
 {
     if (_use_monolithic_scheme)
     {
@@ -385,11 +385,11 @@ void HydroMechanicsProcess<DisplacementDim>::initializeBoundaryConditions()
 }
 
 template <int DisplacementDim>
-void HydroMechanicsProcess<DisplacementDim>::assembleConcreteProcess(
+void PhaseFieldAcidProcess<DisplacementDim>::assembleConcreteProcess(
     const double t, double const dt, std::vector<GlobalVector*> const& x,
     int const process_id, GlobalMatrix& M, GlobalMatrix& K, GlobalVector& b)
 {
-    DBUG("Assemble the equations for HydroMechanics");
+    DBUG("Assemble the equations for PhaseFieldAcid");
 
     // Note: This assembly function is for the Picard nonlinear solver. Since
     // only the Newton-Raphson method is employed to simulate coupled HM
@@ -404,7 +404,7 @@ void HydroMechanicsProcess<DisplacementDim>::assembleConcreteProcess(
 }
 
 template <int DisplacementDim>
-void HydroMechanicsProcess<DisplacementDim>::
+void PhaseFieldAcidProcess<DisplacementDim>::
     assembleWithJacobianConcreteProcess(
         const double t, double const dt, std::vector<GlobalVector*> const& x,
         GlobalVector const& xdot, const double dxdot_dx, const double dx_dx,
@@ -417,7 +417,7 @@ void HydroMechanicsProcess<DisplacementDim>::
     if (_use_monolithic_scheme)
     {
         DBUG(
-            "Assemble the Jacobian of HydroMechanics for the monolithic"
+            "Assemble the Jacobian of PhaseFieldAcid for the monolithic"
             " scheme.");
         dof_tables.emplace_back(*_local_to_global_index_map);
     }
@@ -428,13 +428,13 @@ void HydroMechanicsProcess<DisplacementDim>::
         {
             DBUG(
                 "Assemble the Jacobian equations of liquid fluid process in "
-                "HydroMechanics for the staggered scheme.");
+                "PhaseFieldAcid for the staggered scheme.");
         }
         else
         {
             DBUG(
                 "Assemble the Jacobian equations of mechanical process in "
-                "HydroMechanics for the staggered scheme.");
+                "PhaseFieldAcid for the staggered scheme.");
         }
         dof_tables.emplace_back(*_local_to_global_index_map_with_base_nodes);
         dof_tables.emplace_back(*_local_to_global_index_map);
@@ -472,11 +472,11 @@ void HydroMechanicsProcess<DisplacementDim>::
 }
 
 template <int DisplacementDim>
-void HydroMechanicsProcess<DisplacementDim>::preTimestepConcreteProcess(
+void PhaseFieldAcidProcess<DisplacementDim>::preTimestepConcreteProcess(
     std::vector<GlobalVector*> const& x, double const t, double const dt,
     const int process_id)
 {
-    DBUG("PreTimestep HydroMechanicsProcess.");
+    DBUG("PreTimestep PhaseFieldAcidProcess.");
 
     if (hasMechanicalProcess(process_id))
     {
@@ -490,11 +490,11 @@ void HydroMechanicsProcess<DisplacementDim>::preTimestepConcreteProcess(
 }
 
 template <int DisplacementDim>
-void HydroMechanicsProcess<DisplacementDim>::postTimestepConcreteProcess(
+void PhaseFieldAcidProcess<DisplacementDim>::postTimestepConcreteProcess(
     std::vector<GlobalVector*> const& x, double const t, double const dt,
     const int process_id)
 {
-    DBUG("PostTimestep HydroMechanicsProcess.");
+    DBUG("PostTimestep PhaseFieldAcidProcess.");
     ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
     GlobalExecutor::executeSelectedMemberOnDereferenced(
         &LocalAssemblerInterface::postTimestep, _local_assemblers,
@@ -503,7 +503,7 @@ void HydroMechanicsProcess<DisplacementDim>::postTimestepConcreteProcess(
 }
 
 template <int DisplacementDim>
-void HydroMechanicsProcess<DisplacementDim>::postNonLinearSolverConcreteProcess(
+void PhaseFieldAcidProcess<DisplacementDim>::postNonLinearSolverConcreteProcess(
     GlobalVector const& x, const double t, double const dt,
     const int process_id)
 {
@@ -512,7 +512,7 @@ void HydroMechanicsProcess<DisplacementDim>::postNonLinearSolverConcreteProcess(
         return;
     }
 
-    DBUG("PostNonLinearSolver HydroMechanicsProcess.");
+    DBUG("PostNonLinearSolver PhaseFieldAcidProcess.");
     // Calculate strain, stress or other internal variables of mechanics.
     ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
     GlobalExecutor::executeSelectedMemberOnDereferenced(
@@ -522,10 +522,10 @@ void HydroMechanicsProcess<DisplacementDim>::postNonLinearSolverConcreteProcess(
 }
 
 template <int DisplacementDim>
-void HydroMechanicsProcess<DisplacementDim>::computeSecondaryVariableConcrete(
+void PhaseFieldAcidProcess<DisplacementDim>::computeSecondaryVariableConcrete(
     const double t, GlobalVector const& x, const int process_id)
 {
-    DBUG("Compute the secondary variables for HydroMechanicsProcess.");
+    DBUG("Compute the secondary variables for PhaseFieldAcidProcess.");
     ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
     GlobalExecutor::executeSelectedMemberOnDereferenced(
         &LocalAssemblerInterface::computeSecondaryVariable, _local_assemblers,
@@ -535,7 +535,7 @@ void HydroMechanicsProcess<DisplacementDim>::computeSecondaryVariableConcrete(
 
 template <int DisplacementDim>
 std::tuple<NumLib::LocalToGlobalIndexMap*, bool>
-HydroMechanicsProcess<DisplacementDim>::getDOFTableForExtrapolatorData() const
+PhaseFieldAcidProcess<DisplacementDim>::getDOFTableForExtrapolatorData() const
 {
     const bool manage_storage = false;
     return std::make_tuple(_local_to_global_index_map_single_component.get(),
@@ -544,7 +544,7 @@ HydroMechanicsProcess<DisplacementDim>::getDOFTableForExtrapolatorData() const
 
 template <int DisplacementDim>
 NumLib::LocalToGlobalIndexMap const&
-HydroMechanicsProcess<DisplacementDim>::getDOFTable(const int process_id) const
+PhaseFieldAcidProcess<DisplacementDim>::getDOFTable(const int process_id) const
 {
     if (hasMechanicalProcess(process_id))
     {
@@ -555,8 +555,8 @@ HydroMechanicsProcess<DisplacementDim>::getDOFTable(const int process_id) const
     return *_local_to_global_index_map_with_base_nodes;
 }
 
-template class HydroMechanicsProcess<2>;
-template class HydroMechanicsProcess<3>;
+template class PhaseFieldAcidProcess<2>;
+template class PhaseFieldAcidProcess<3>;
 
-}  // namespace HydroMechanics
+}  // namespace PhaseFieldAcid
 }  // namespace ProcessLib

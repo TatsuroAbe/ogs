@@ -36,10 +36,10 @@ class ProcessVariable;
 
 namespace ProcessLib
 {
-namespace HydroMechanics
+namespace PhaseFieldAcid
 {
 template <int DisplacementDim>
-std::unique_ptr<Process> createHydroMechanicsProcess(
+std::unique_ptr<Process> createPhaseFieldAcidProcess(
     std::string name,
     MeshLib::Mesh& mesh,
     std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
@@ -50,7 +50,7 @@ std::unique_ptr<Process> createHydroMechanicsProcess(
     unsigned const integration_order,
     BaseLib::ConfigTree const& config);
 
-extern template std::unique_ptr<Process> createHydroMechanicsProcess<2>(
+extern template std::unique_ptr<Process> createPhaseFieldAcidProcess<2>(
     std::string name,
     MeshLib::Mesh& mesh,
     std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
@@ -61,7 +61,7 @@ extern template std::unique_ptr<Process> createHydroMechanicsProcess<2>(
     unsigned const integration_order,
     BaseLib::ConfigTree const& config);
 
-extern template std::unique_ptr<Process> createHydroMechanicsProcess<3>(
+extern template std::unique_ptr<Process> createPhaseFieldAcidProcess<3>(
     std::string name,
     MeshLib::Mesh& mesh,
     std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
@@ -71,5 +71,5 @@ extern template std::unique_ptr<Process> createHydroMechanicsProcess<3>(
         local_coordinate_system,
     unsigned const integration_order,
     BaseLib::ConfigTree const& config);
-}  // namespace HydroMechanics
+}  // namespace PhaseFieldAcid
 }  // namespace ProcessLib

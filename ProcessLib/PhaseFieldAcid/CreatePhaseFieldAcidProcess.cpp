@@ -23,10 +23,10 @@
 
 namespace ProcessLib
 {
-namespace HydroMechanics
+namespace PhaseFieldAcid
 {
 template <int DisplacementDim>
-std::unique_ptr<Process> createHydroMechanicsProcess(
+std::unique_ptr<Process> createPhaseFieldAcidProcess(
     std::string name,
     MeshLib::Mesh& mesh,
     std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
@@ -38,8 +38,8 @@ std::unique_ptr<Process> createHydroMechanicsProcess(
     BaseLib::ConfigTree const& config)
 {
     //! \ogs_file_param{prj__processes__process__type}
-    config.checkConfigParameter("type", "HYDRO_MECHANICS");
-    DBUG("Create HydroMechanicsProcess.");
+    config.checkConfigParameter("type", "PHASEFIELD_ACID");
+    DBUG("Create PhaseFieldAcidProcess.");
 
     auto const staggered_scheme =
         //! \ogs_file_param{prj__processes__process__HYDRO_MECHANICS__coupling_scheme}
@@ -216,7 +216,7 @@ std::unique_ptr<Process> createHydroMechanicsProcess(
         OGS_FATAL(FluidType::getErrorMsg(fluid_type));
     }
 
-    HydroMechanicsProcessData<DisplacementDim> process_data{
+    PhaseFieldAcidProcessData<DisplacementDim> process_data{
         materialIDs(mesh),     std::move(solid_constitutive_relations),
         initial_stress,        intrinsic_permeability,
         fluid_viscosity,       fluid_density,
@@ -229,14 +229,14 @@ std::unique_ptr<Process> createHydroMechanicsProcess(
 
     ProcessLib::createSecondaryVariables(config, secondary_variables);
 
-    return std::make_unique<HydroMechanicsProcess<DisplacementDim>>(
+    return std::make_unique<PhaseFieldAcidProcess<DisplacementDim>>(
         std::move(name), mesh, std::move(jacobian_assembler), parameters,
         integration_order, std::move(process_variables),
         std::move(process_data), std::move(secondary_variables),
         use_monolithic_scheme);
 }
 
-template std::unique_ptr<Process> createHydroMechanicsProcess<2>(
+template std::unique_ptr<Process> createPhaseFieldAcidProcess<2>(
     std::string name,
     MeshLib::Mesh& mesh,
     std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
@@ -247,7 +247,7 @@ template std::unique_ptr<Process> createHydroMechanicsProcess<2>(
     unsigned const integration_order,
     BaseLib::ConfigTree const& config);
 
-template std::unique_ptr<Process> createHydroMechanicsProcess<3>(
+template std::unique_ptr<Process> createPhaseFieldAcidProcess<3>(
     std::string name,
     MeshLib::Mesh& mesh,
     std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
@@ -258,5 +258,5 @@ template std::unique_ptr<Process> createHydroMechanicsProcess<3>(
     unsigned const integration_order,
     BaseLib::ConfigTree const& config);
 
-}  // namespace HydroMechanics
+}  // namespace PhaseFieldAcid
 }  // namespace ProcessLib

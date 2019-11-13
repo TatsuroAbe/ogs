@@ -20,18 +20,18 @@
 
 namespace ProcessLib
 {
-namespace HydroMechanics
+namespace PhaseFieldAcid
 {
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-HydroMechanicsLocalAssembler<ShapeFunctionDisplacement, ShapeFunctionPressure,
+PhaseFieldAcidLocalAssembler<ShapeFunctionDisplacement, ShapeFunctionPressure,
                              IntegrationMethod, DisplacementDim>::
-    HydroMechanicsLocalAssembler(
+    PhaseFieldAcidLocalAssembler(
         MeshLib::Element const& e,
         std::size_t const /*local_matrix_size*/,
         bool const is_axially_symmetric,
         unsigned const integration_order,
-        HydroMechanicsProcessData<DisplacementDim>& process_data)
+        PhaseFieldAcidProcessData<DisplacementDim>& process_data)
     : _process_data(process_data),
       _integration_method(integration_order),
       _element(e),
@@ -102,7 +102,7 @@ HydroMechanicsLocalAssembler<ShapeFunctionDisplacement, ShapeFunctionPressure,
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-void HydroMechanicsLocalAssembler<ShapeFunctionDisplacement,
+void PhaseFieldAcidLocalAssembler<ShapeFunctionDisplacement,
                                   ShapeFunctionPressure, IntegrationMethod,
                                   DisplacementDim>::
     assembleWithJacobian(double const t, double const dt,
@@ -299,7 +299,7 @@ void HydroMechanicsLocalAssembler<ShapeFunctionDisplacement,
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
 std::vector<double> const&
-HydroMechanicsLocalAssembler<ShapeFunctionDisplacement, ShapeFunctionPressure,
+PhaseFieldAcidLocalAssembler<ShapeFunctionDisplacement, ShapeFunctionPressure,
                              IntegrationMethod, DisplacementDim>::
     getIntPtDarcyVelocity(
         const double t,
@@ -347,7 +347,7 @@ HydroMechanicsLocalAssembler<ShapeFunctionDisplacement, ShapeFunctionPressure,
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-void HydroMechanicsLocalAssembler<ShapeFunctionDisplacement,
+void PhaseFieldAcidLocalAssembler<ShapeFunctionDisplacement,
                                   ShapeFunctionPressure, IntegrationMethod,
                                   DisplacementDim>::
     assembleWithJacobianForPressureEquations(
@@ -458,7 +458,7 @@ void HydroMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-void HydroMechanicsLocalAssembler<ShapeFunctionDisplacement,
+void PhaseFieldAcidLocalAssembler<ShapeFunctionDisplacement,
                                   ShapeFunctionPressure, IntegrationMethod,
                                   DisplacementDim>::
     assembleWithJacobianForDeformationEquations(
@@ -548,7 +548,7 @@ void HydroMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-void HydroMechanicsLocalAssembler<ShapeFunctionDisplacement,
+void PhaseFieldAcidLocalAssembler<ShapeFunctionDisplacement,
                                   ShapeFunctionPressure, IntegrationMethod,
                                   DisplacementDim>::
     assembleWithJacobianForStaggeredScheme(
@@ -575,7 +575,7 @@ void HydroMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-void HydroMechanicsLocalAssembler<ShapeFunctionDisplacement,
+void PhaseFieldAcidLocalAssembler<ShapeFunctionDisplacement,
                                   ShapeFunctionPressure, IntegrationMethod,
                                   DisplacementDim>::
     postNonLinearSolverConcrete(std::vector<double> const& local_x,
@@ -619,7 +619,7 @@ void HydroMechanicsLocalAssembler<ShapeFunctionDisplacement,
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-std::size_t HydroMechanicsLocalAssembler<
+std::size_t PhaseFieldAcidLocalAssembler<
     ShapeFunctionDisplacement, ShapeFunctionPressure, IntegrationMethod,
     DisplacementDim>::setIPDataInitialConditions(std::string const& name,
                                                  double const* values,
@@ -649,7 +649,7 @@ std::size_t HydroMechanicsLocalAssembler<
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-std::size_t HydroMechanicsLocalAssembler<
+std::size_t PhaseFieldAcidLocalAssembler<
     ShapeFunctionDisplacement, ShapeFunctionPressure, IntegrationMethod,
     DisplacementDim>::setSigma(double const* values)
 {
@@ -675,7 +675,7 @@ std::size_t HydroMechanicsLocalAssembler<
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-std::vector<double> HydroMechanicsLocalAssembler<
+std::vector<double> PhaseFieldAcidLocalAssembler<
     ShapeFunctionDisplacement, ShapeFunctionPressure, IntegrationMethod,
     DisplacementDim>::getSigma() const
 {
@@ -701,7 +701,7 @@ std::vector<double> HydroMechanicsLocalAssembler<
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-std::size_t HydroMechanicsLocalAssembler<
+std::size_t PhaseFieldAcidLocalAssembler<
     ShapeFunctionDisplacement, ShapeFunctionPressure, IntegrationMethod,
     DisplacementDim>::setEpsilon(double const* values)
 {
@@ -726,7 +726,7 @@ std::size_t HydroMechanicsLocalAssembler<
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-std::vector<double> HydroMechanicsLocalAssembler<
+std::vector<double> PhaseFieldAcidLocalAssembler<
     ShapeFunctionDisplacement, ShapeFunctionPressure, IntegrationMethod,
     DisplacementDim>::getEpsilon() const
 {
@@ -752,7 +752,7 @@ std::vector<double> HydroMechanicsLocalAssembler<
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-void HydroMechanicsLocalAssembler<ShapeFunctionDisplacement,
+void PhaseFieldAcidLocalAssembler<ShapeFunctionDisplacement,
                                   ShapeFunctionPressure, IntegrationMethod,
                                   DisplacementDim>::
     computeSecondaryVariableConcrete(double const /*t*/,
@@ -796,5 +796,5 @@ void HydroMechanicsLocalAssembler<ShapeFunctionDisplacement,
     }
 }
 
-}  // namespace HydroMechanics
+}  // namespace PhaseFieldAcid
 }  // namespace ProcessLib

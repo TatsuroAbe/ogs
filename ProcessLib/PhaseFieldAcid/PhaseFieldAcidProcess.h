@@ -16,17 +16,17 @@
 
 namespace ProcessLib
 {
-namespace HydroMechanics
+namespace PhaseFieldAcid
 {
 /// Linear kinematics poro-mechanical/biphasic (fluid-solid mixture) model.
 ///
 /// The mixture momentum balance and the mixture mass balance are solved under
 /// fully saturated conditions.
 template <int DisplacementDim>
-class HydroMechanicsProcess final : public Process
+class PhaseFieldAcidProcess final : public Process
 {
 public:
-    HydroMechanicsProcess(
+    PhaseFieldAcidProcess(
         std::string name,
         MeshLib::Mesh& mesh,
         std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&&
@@ -36,7 +36,7 @@ public:
         unsigned const integration_order,
         std::vector<std::vector<std::reference_wrapper<ProcessVariable>>>&&
             process_variables,
-        HydroMechanicsProcessData<DisplacementDim>&& process_data,
+        PhaseFieldAcidProcessData<DisplacementDim>&& process_data,
         SecondaryVariableCollection&& secondary_variables,
         bool const use_monolithic_scheme);
 
@@ -101,7 +101,7 @@ private:
 private:
     std::vector<MeshLib::Node*> _base_nodes;
     std::unique_ptr<MeshLib::MeshSubset const> _mesh_subset_base_nodes;
-    HydroMechanicsProcessData<DisplacementDim> _process_data;
+    PhaseFieldAcidProcessData<DisplacementDim> _process_data;
 
     std::vector<std::unique_ptr<LocalAssemblerInterface>> _local_assemblers;
 
@@ -140,8 +140,8 @@ private:
     MeshLib::PropertyVector<double>* _hydraulic_flow = nullptr;
 };
 
-extern template class HydroMechanicsProcess<2>;
-extern template class HydroMechanicsProcess<3>;
+extern template class PhaseFieldAcidProcess<2>;
+extern template class PhaseFieldAcidProcess<3>;
 
-}  // namespace HydroMechanics
+}  // namespace PhaseFieldAcid
 }  // namespace ProcessLib

@@ -30,7 +30,7 @@
 
 namespace ProcessLib
 {
-namespace HydroMechanics
+namespace PhaseFieldAcid
 {
 template <typename BMatricesType, typename ShapeMatrixTypeDisplacement,
           typename ShapeMatricesTypePressure, int DisplacementDim, int NPoints>
@@ -106,7 +106,7 @@ struct SecondaryData
 
 template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
           typename IntegrationMethod, int DisplacementDim>
-class HydroMechanicsLocalAssembler : public LocalAssemblerInterface
+class PhaseFieldAcidLocalAssembler : public LocalAssemblerInterface
 {
 public:
     using ShapeMatricesTypeDisplacement =
@@ -120,15 +120,15 @@ public:
         MathLib::KelvinVector::KelvinVectorDimensions<DisplacementDim>::value;
     using Invariants = MathLib::KelvinVector::Invariants<KelvinVectorSize>;
 
-    HydroMechanicsLocalAssembler(HydroMechanicsLocalAssembler const&) = delete;
-    HydroMechanicsLocalAssembler(HydroMechanicsLocalAssembler&&) = delete;
+    PhaseFieldAcidLocalAssembler(PhaseFieldAcidLocalAssembler const&) = delete;
+    PhaseFieldAcidLocalAssembler(PhaseFieldAcidLocalAssembler&&) = delete;
 
-    HydroMechanicsLocalAssembler(
+    PhaseFieldAcidLocalAssembler(
         MeshLib::Element const& e,
         std::size_t const /*local_matrix_size*/,
         bool const is_axially_symmetric,
         unsigned const integration_order,
-        HydroMechanicsProcessData<DisplacementDim>& process_data);
+        PhaseFieldAcidProcessData<DisplacementDim>& process_data);
 
     /// Returns number of read integration points.
     std::size_t setIPDataInitialConditions(
@@ -143,7 +143,7 @@ public:
                   std::vector<double>& /*local_rhs_data*/) override
     {
         OGS_FATAL(
-            "HydroMechanicsLocalAssembler: assembly without jacobian is not "
+            "PhaseFieldAcidLocalAssembler: assembly without jacobian is not "
             "implemented.");
     }
 
@@ -437,7 +437,7 @@ private:
         LocalCoupledSolutions const& local_coupled_solutions);
 
 private:
-    HydroMechanicsProcessData<DisplacementDim>& _process_data;
+    PhaseFieldAcidProcessData<DisplacementDim>& _process_data;
 
     using BMatricesType =
         BMatrixPolicyType<ShapeFunctionDisplacement, DisplacementDim>;
@@ -461,7 +461,7 @@ private:
         ShapeFunctionDisplacement::NPOINTS * DisplacementDim;
 };
 
-}  // namespace HydroMechanics
+}  // namespace PhaseFieldAcid
 }  // namespace ProcessLib
 
 #include "PhaseFieldAcidFEM-impl.h"

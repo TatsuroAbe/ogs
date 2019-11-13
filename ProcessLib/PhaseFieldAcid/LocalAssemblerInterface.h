@@ -15,7 +15,7 @@
 
 namespace ProcessLib
 {
-namespace HydroMechanics
+namespace PhaseFieldAcid
 {
 struct LocalAssemblerInterface
     : public ProcessLib::LocalAssemblerInterface,
@@ -25,81 +25,7 @@ struct LocalAssemblerInterface
         std::string const& name, double const* values,
         int const integration_order) = 0;
 
-    virtual std::vector<double> getSigma() const = 0;
-
-    virtual std::vector<double> getEpsilon() const = 0;
-
-    virtual std::vector<double> const& getIntPtSigmaXX(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
-
-    virtual std::vector<double> const& getIntPtSigmaYY(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
-
-    virtual std::vector<double> const& getIntPtSigmaZZ(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
-
-    virtual std::vector<double> const& getIntPtSigmaXY(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
-
-    virtual std::vector<double> const& getIntPtSigmaXZ(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
-
-    virtual std::vector<double> const& getIntPtSigmaYZ(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
-
-    virtual std::vector<double> const& getIntPtEpsilonXX(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
-
-    virtual std::vector<double> const& getIntPtEpsilonYY(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
-
-    virtual std::vector<double> const& getIntPtEpsilonZZ(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
-
-    virtual std::vector<double> const& getIntPtEpsilonXY(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
-
-    virtual std::vector<double> const& getIntPtEpsilonXZ(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
-
-    virtual std::vector<double> const& getIntPtEpsilonYZ(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
+ 
 
     virtual std::vector<double> const& getIntPtDarcyVelocity(
         const double t,
@@ -108,5 +34,5 @@ struct LocalAssemblerInterface
         std::vector<double>& cache) const = 0;
 };
 
-}  // namespace HydroMechanics
+}  // namespace PhaseFieldAcid
 }  // namespace ProcessLib

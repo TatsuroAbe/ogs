@@ -28,10 +28,10 @@ struct MechanicsBase;
 }
 namespace ProcessLib
 {
-namespace HydroMechanics
+namespace PhaseFieldAcid
 {
 template <int DisplacementDim>
-struct HydroMechanicsProcessData
+struct PhaseFieldAcidProcessData
 {
     MeshLib::PropertyVector<int> const* const material_ids = nullptr;
 
@@ -127,5 +127,5 @@ struct HydroMechanicsProcessData
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 };
 
-}  // namespace HydroMechanics
+}  // namespace PhaseFieldAcid
 }  // namespace ProcessLib
