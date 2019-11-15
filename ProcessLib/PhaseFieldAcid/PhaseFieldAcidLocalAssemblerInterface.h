@@ -15,16 +15,13 @@
 
 namespace ProcessLib
 {
+
 namespace PhaseFieldAcid
 {
-struct LocalAssemblerInterface
+struct PhaseFieldAcidLocalAssemblerInterface
     : public ProcessLib::LocalAssemblerInterface,
       public NumLib::ExtrapolatableElement
 {
-    virtual std::size_t setIPDataInitialConditions(
-        std::string const& name, double const* values,
-        int const integration_order) = 0;
-
  
 
     virtual std::vector<double> const& getIntPtDarcyVelocity(

@@ -10,66 +10,31 @@
 
 #pragma once
 
-#include <boost/optional.hpp>
 #include <memory>
-#include <vector>
 
-namespace BaseLib
-{
-class ConfigTree;
-}
-namespace MeshLib
-{
-class Mesh;
-}
-namespace ParameterLib
-{
-struct CoordinateSystem;
-struct ParameterBase;
-}
+#include "ProcessLib/Process.h"
+
 namespace ProcessLib
 {
 class AbstractJacobianAssembler;
 class Process;
 class ProcessVariable;
-}
+}  // namespace ProcessLib
 
 namespace ProcessLib
 {
 namespace PhaseFieldAcid
 {
-template <int DisplacementDim>
 std::unique_ptr<Process> createPhaseFieldAcidProcess(
     std::string name,
     MeshLib::Mesh& mesh,
     std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
     std::vector<ProcessVariable> const& variables,
     std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const& parameters,
-    boost::optional<ParameterLib::CoordinateSystem> const&
-        local_coordinate_system,
     unsigned const integration_order,
-    BaseLib::ConfigTree const& config);
+    BaseLib::ConfigTree const& config,
+    std::vector<std::unique_ptr<MeshLib::Mesh>> const& meshes,
+    std::string const& output_directory);
 
-extern template std::unique_ptr<Process> createPhaseFieldAcidProcess<2>(
-    std::string name,
-    MeshLib::Mesh& mesh,
-    std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
-    std::vector<ProcessVariable> const& variables,
-    std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const& parameters,
-    boost::optional<ParameterLib::CoordinateSystem> const&
-        local_coordinate_system,
-    unsigned const integration_order,
-    BaseLib::ConfigTree const& config);
-
-extern template std::unique_ptr<Process> createPhaseFieldAcidProcess<3>(
-    std::string name,
-    MeshLib::Mesh& mesh,
-    std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
-    std::vector<ProcessVariable> const& variables,
-    std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const& parameters,
-    boost::optional<ParameterLib::CoordinateSystem> const&
-        local_coordinate_system,
-    unsigned const integration_order,
-    BaseLib::ConfigTree const& config);
 }  // namespace PhaseFieldAcid
 }  // namespace ProcessLib

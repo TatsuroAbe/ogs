@@ -12,551 +12,226 @@
 
 #include <cassert>
 
-#include "MeshLib/Elements/Utils.h"
-#include "NumLib/DOF/ComputeSparsityPattern.h"
-#include "ProcessLib/PhaseFieldAcid/CreateLocalAssemblers.h"
-#include "ProcessLib/Process.h"
-
+#include "NumLib/DOF/DOFTableUtil.h"
+#include "NumLib/DOF/LocalToGlobalIndexMap.h"
 #include "PhaseFieldAcidFEM.h"
-#include "PhaseFieldAcidProcessData.h"
+#include "ProcessLib/SurfaceFlux/SurfaceFluxData.h"
+#include "ProcessLib/Utils/CreateLocalAssemblers.h"
 
 namespace ProcessLib
 {
 namespace PhaseFieldAcid
 {
-template <int DisplacementDim>
-PhaseFieldAcidProcess<DisplacementDim>::PhaseFieldAcidProcess(
-    std::string name,
-    MeshLib::Mesh& mesh,
+PhaseFieldAcidProcess::PhaseFieldAcidProcess(
+    std::string name, MeshLib::Mesh& mesh,
     std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
     std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const& parameters,
     unsigned const integration_order,
     std::vector<std::vector<std::reference_wrapper<ProcessVariable>>>&&
         process_variables,
-    PhaseFieldAcidProcessData<DisplacementDim>&& process_data,
+    PhaseFieldAcidProcessData&& process_data,
     SecondaryVariableCollection&& secondary_variables,
-    bool const use_monolithic_scheme)
+    bool const use_monolithic_scheme,
+    std::unique_ptr<ProcessLib::SurfaceFluxData>&& surfaceflux,
+    const int concentration_process_id, const int phasefield_process_id)
     : Process(std::move(name), mesh, std::move(jacobian_assembler), parameters,
               integration_order, std::move(process_variables),
               std::move(secondary_variables), use_monolithic_scheme),
-      _process_data(std::move(process_data))
+      _process_data(std::move(process_data)),
+      _surfaceflux(std::move(surfaceflux)),
+      _concentration_process_id(concentration_process_id),
+      _phasefield_process_id(phasefield_process_id)
 {
-    _nodal_forces = MeshLib::getOrCreateMeshProperty<double>(
-        mesh, "NodalForces", MeshLib::MeshItemType::Node, DisplacementDim);
-
-    _hydraulic_flow = MeshLib::getOrCreateMeshProperty<double>(
-        mesh, "HydraulicFlow", MeshLib::MeshItemType::Node, 1);
-
-    _integration_point_writer.emplace_back(
-        std::make_unique<IntegrationPointWriter>(
-            "sigma_ip",
-            static_cast<int>(mesh.getDimension() == 2 ? 4 : 6) /*n components*/,
-            2 /*integration order*/, [this]() {
-                // Result containing integration point data for each local
-                // assembler.
-                std::vector<std::vector<double>> result;
-                result.resize(_local_assemblers.size());
-
-                for (std::size_t i = 0; i < _local_assemblers.size(); ++i)
-                {
-                    auto const& local_asm = *_local_assemblers[i];
-
-                    result[i] = local_asm.getSigma();
-                }
-
-                return result;
-            }));
-
-    _integration_point_writer.emplace_back(
-        std::make_unique<IntegrationPointWriter>(
-            "epsilon_ip",
-            static_cast<int>(mesh.getDimension() == 2 ? 4 : 6) /*n components*/,
-            2 /*integration order*/, [this]() {
-                // Result containing integration point data for each local
-                // assembler.
-                std::vector<std::vector<double>> result;
-                result.resize(_local_assemblers.size());
-
-                for (std::size_t i = 0; i < _local_assemblers.size(); ++i)
-                {
-                    auto const& local_asm = *_local_assemblers[i];
-
-                    result[i] = local_asm.getEpsilon();
-                }
-
-                return result;
-            }));
-}
-
-template <int DisplacementDim>
-bool PhaseFieldAcidProcess<DisplacementDim>::isLinear() const
-{
-    return false;
-}
-
-template <int DisplacementDim>
-MathLib::MatrixSpecifications
-PhaseFieldAcidProcess<DisplacementDim>::getMatrixSpecifications(
-    const int process_id) const
-{
-    // For the monolithic scheme or the M process (deformation) in the staggered
-    // scheme.
-    if (_use_monolithic_scheme || process_id == 1)
+    if (use_monolithic_scheme)
     {
-        auto const& l = *_local_to_global_index_map;
-        return {l.dofSizeWithoutGhosts(), l.dofSizeWithoutGhosts(),
-                &l.getGhostIndices(), &this->_sparsity_pattern};
-    }
-
-    // For staggered scheme and H process (pressure).
-    auto const& l = *_local_to_global_index_map_with_base_nodes;
-    return {l.dofSizeWithoutGhosts(), l.dofSizeWithoutGhosts(),
-            &l.getGhostIndices(), &_sparsity_pattern_with_linear_element};
-}
-
-template <int DisplacementDim>
-void PhaseFieldAcidProcess<DisplacementDim>::constructDofTable()
-{
-    // Create single component dof in every of the mesh's nodes.
-    _mesh_subset_all_nodes =
-        std::make_unique<MeshLib::MeshSubset>(_mesh, _mesh.getNodes());
-    // Create single component dof in the mesh's base nodes.
-    _base_nodes = MeshLib::getBaseNodes(_mesh.getElements());
-    _mesh_subset_base_nodes =
-        std::make_unique<MeshLib::MeshSubset>(_mesh, _base_nodes);
-
-    // TODO move the two data members somewhere else.
-    // for extrapolation of secondary variables of stress or strain
-    std::vector<MeshLib::MeshSubset> all_mesh_subsets_single_component{
-        *_mesh_subset_all_nodes};
-    _local_to_global_index_map_single_component =
-        std::make_unique<NumLib::LocalToGlobalIndexMap>(
-            std::move(all_mesh_subsets_single_component),
-            // by location order is needed for output
-            NumLib::ComponentOrder::BY_LOCATION);
-
-    if (_use_monolithic_scheme)
-    {
-        // For pressure, which is the first
-        std::vector<MeshLib::MeshSubset> all_mesh_subsets{
-            *_mesh_subset_base_nodes};
-
-        // For displacement.
-        const int monolithic_process_id = 0;
-        std::generate_n(std::back_inserter(all_mesh_subsets),
-                        getProcessVariables(monolithic_process_id)[1]
-                            .get()
-                            .getNumberOfComponents(),
-                        [&]() { return *_mesh_subset_all_nodes; });
-
-        std::vector<int> const vec_n_components{1, DisplacementDim};
-        _local_to_global_index_map =
-            std::make_unique<NumLib::LocalToGlobalIndexMap>(
-                std::move(all_mesh_subsets), vec_n_components,
-                NumLib::ComponentOrder::BY_LOCATION);
-        assert(_local_to_global_index_map);
-    }
-    else
-    {
-        // For displacement equation.
-        const int process_id = 1;
-        std::vector<MeshLib::MeshSubset> all_mesh_subsets;
-        std::generate_n(
-            std::back_inserter(all_mesh_subsets),
-            getProcessVariables(process_id)[0].get().getNumberOfComponents(),
-            [&]() { return *_mesh_subset_all_nodes; });
-
-        std::vector<int> const vec_n_components{DisplacementDim};
-        _local_to_global_index_map =
-            std::make_unique<NumLib::LocalToGlobalIndexMap>(
-                std::move(all_mesh_subsets), vec_n_components,
-                NumLib::ComponentOrder::BY_LOCATION);
-
-        // For pressure equation.
-        // Collect the mesh subsets with base nodes in a vector.
-        std::vector<MeshLib::MeshSubset> all_mesh_subsets_base_nodes{
-            *_mesh_subset_base_nodes};
-        _local_to_global_index_map_with_base_nodes =
-            std::make_unique<NumLib::LocalToGlobalIndexMap>(
-                std::move(all_mesh_subsets_base_nodes),
-                // by location order is needed for output
-                NumLib::ComponentOrder::BY_LOCATION);
-
-        _sparsity_pattern_with_linear_element = NumLib::computeSparsityPattern(
-            *_local_to_global_index_map_with_base_nodes, _mesh);
-
-        assert(_local_to_global_index_map);
-        assert(_local_to_global_index_map_with_base_nodes);
+        OGS_FATAL(
+            "Monolithic scheme is not implemented for the PhaseField_Acid "
+            "process.");
     }
 }
 
-template <int DisplacementDim>
-void PhaseFieldAcidProcess<DisplacementDim>::initializeConcreteProcess(
+void PhaseFieldAcidProcess::initializeConcreteProcess(
     NumLib::LocalToGlobalIndexMap const& dof_table,
     MeshLib::Mesh const& mesh,
     unsigned const integration_order)
 {
-    const int mechanical_process_id = _use_monolithic_scheme ? 0 : 1;
-    const int deformation_variable_id = _use_monolithic_scheme ? 1 : 0;
-    ProcessLib::PhaseFieldAcid::createLocalAssemblers<
-        DisplacementDim, PhaseFieldAcidLocalAssembler>(
-        mesh.getDimension(), mesh.getElements(), dof_table,
-        // use displacement process variable to set shape function order
-        getProcessVariables(mechanical_process_id)[deformation_variable_id]
-            .get()
-            .getShapeFunctionOrder(),
-        _local_assemblers, mesh.isAxiallySymmetric(), integration_order,
-        _process_data);
+    const int process_id = 0;
+    ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
 
-    _secondary_variables.addSecondaryVariable(
-        "sigma_xx",
-        makeExtrapolator(1, getExtrapolator(), _local_assemblers,
-                         &LocalAssemblerInterface::getIntPtSigmaXX));
-
-    _secondary_variables.addSecondaryVariable(
-        "sigma_yy",
-        makeExtrapolator(1, getExtrapolator(), _local_assemblers,
-                         &LocalAssemblerInterface::getIntPtSigmaYY));
-
-    _secondary_variables.addSecondaryVariable(
-        "sigma_zz",
-        makeExtrapolator(1, getExtrapolator(), _local_assemblers,
-                         &LocalAssemblerInterface::getIntPtSigmaZZ));
-
-    _secondary_variables.addSecondaryVariable(
-        "sigma_xy",
-        makeExtrapolator(1, getExtrapolator(), _local_assemblers,
-                         &LocalAssemblerInterface::getIntPtSigmaXY));
-
-    if (DisplacementDim == 3)
-    {
-        _secondary_variables.addSecondaryVariable(
-            "sigma_xz",
-            makeExtrapolator(1, getExtrapolator(), _local_assemblers,
-                             &LocalAssemblerInterface::getIntPtSigmaXZ));
-
-        _secondary_variables.addSecondaryVariable(
-            "sigma_yz",
-            makeExtrapolator(1, getExtrapolator(), _local_assemblers,
-                             &LocalAssemblerInterface::getIntPtSigmaYZ));
-    }
-
-    _secondary_variables.addSecondaryVariable(
-        "epsilon_xx",
-        makeExtrapolator(1, getExtrapolator(), _local_assemblers,
-                         &LocalAssemblerInterface::getIntPtEpsilonXX));
-
-    _secondary_variables.addSecondaryVariable(
-        "epsilon_yy",
-        makeExtrapolator(1, getExtrapolator(), _local_assemblers,
-                         &LocalAssemblerInterface::getIntPtEpsilonYY));
-
-    _secondary_variables.addSecondaryVariable(
-        "epsilon_zz",
-        makeExtrapolator(1, getExtrapolator(), _local_assemblers,
-                         &LocalAssemblerInterface::getIntPtEpsilonZZ));
-
-    _secondary_variables.addSecondaryVariable(
-        "epsilon_xy",
-        makeExtrapolator(1, getExtrapolator(), _local_assemblers,
-                         &LocalAssemblerInterface::getIntPtEpsilonXY));
-
-    if (DisplacementDim == 3)
-    {
-        _secondary_variables.addSecondaryVariable(
-            "epsilon_xz",
-            makeExtrapolator(1, getExtrapolator(), _local_assemblers,
-                             &LocalAssemblerInterface::getIntPtEpsilonXZ));
-
-        _secondary_variables.addSecondaryVariable(
-            "epsilon_yz",
-            makeExtrapolator(1, getExtrapolator(), _local_assemblers,
-                             &LocalAssemblerInterface::getIntPtEpsilonYZ));
-    }
-
-    _secondary_variables.addSecondaryVariable(
-        "velocity",
-        makeExtrapolator(mesh.getDimension(), getExtrapolator(),
-                         _local_assemblers,
-                         &LocalAssemblerInterface::getIntPtDarcyVelocity));
-
-    _process_data.pressure_interpolated =
-        MeshLib::getOrCreateMeshProperty<double>(
-            const_cast<MeshLib::Mesh&>(mesh), "pressure_interpolated",
-            MeshLib::MeshItemType::Node, 1);
-
-    _process_data.principal_stress_vector[0] =
-        MeshLib::getOrCreateMeshProperty<double>(
-            const_cast<MeshLib::Mesh&>(mesh), "principal_stress_vector_1",
-            MeshLib::MeshItemType::Cell, 3);
-
-    _process_data.principal_stress_vector[1] =
-        MeshLib::getOrCreateMeshProperty<double>(
-            const_cast<MeshLib::Mesh&>(mesh), "principal_stress_vector_2",
-            MeshLib::MeshItemType::Cell, 3);
-
-    _process_data.principal_stress_vector[2] =
-        MeshLib::getOrCreateMeshProperty<double>(
-            const_cast<MeshLib::Mesh&>(mesh), "principal_stress_vector_3",
-            MeshLib::MeshItemType::Cell, 3);
-
-    _process_data.principal_stress_values =
-        MeshLib::getOrCreateMeshProperty<double>(
-            const_cast<MeshLib::Mesh&>(mesh), "principal_stress_values",
-            MeshLib::MeshItemType::Cell, 3);
-
-    // Set initial conditions for integration point data.
-    for (auto const& ip_writer : _integration_point_writer)
-    {
-        // Find the mesh property with integration point writer's name.
-        auto const& name = ip_writer->name();
-        if (!mesh.getProperties().existsPropertyVector<double>(name))
-        {
-            continue;
-        }
-        auto const& mesh_property =
-            *mesh.getProperties().template getPropertyVector<double>(name);
-
-        // The mesh property must be defined on integration points.
-        if (mesh_property.getMeshItemType() !=
-            MeshLib::MeshItemType::IntegrationPoint)
-        {
-            continue;
-        }
-
-        auto const ip_meta_data = getIntegrationPointMetaData(mesh, name);
-
-        // Check the number of components.
-        if (ip_meta_data.n_components != mesh_property.getNumberOfComponents())
-        {
-            OGS_FATAL(
-                "Different number of components in meta data (%d) than in "
-                "the integration point field data for '%s': %d.",
-                ip_meta_data.n_components, name.c_str(),
-                mesh_property.getNumberOfComponents());
-        }
-
-        // Now we have a properly named vtk's field data array and the
-        // corresponding meta data.
-        std::size_t position = 0;
-        for (auto& local_asm : _local_assemblers)
-        {
-            std::size_t const integration_points_read =
-                local_asm->setIPDataInitialConditions(
-                    name, &mesh_property[position],
-                    ip_meta_data.integration_order);
-            if (integration_points_read == 0)
-            {
-                OGS_FATAL(
-                    "No integration points read in the integration point "
-                    "initial conditions set function.");
-            }
-            position += integration_points_read * ip_meta_data.n_components;
-        }
-    }
-
-    // Initialize local assemblers after all variables have been set.
-    GlobalExecutor::executeMemberOnDereferenced(
-        &LocalAssemblerInterface::initialize, _local_assemblers,
-        *_local_to_global_index_map);
-}
-
-template <int DisplacementDim>
-void PhaseFieldAcidProcess<DisplacementDim>::initializeBoundaryConditions()
-{
     if (_use_monolithic_scheme)
     {
-        const int process_id_of_hydromechancs = 0;
-        initializeProcessBoundaryConditionsAndSourceTerms(
-            *_local_to_global_index_map, process_id_of_hydromechancs);
-        return;
-    }
-
-    // Staggered scheme:
-    // for the equations of pressure
-    const int hydraulic_process_id = 0;
-    initializeProcessBoundaryConditionsAndSourceTerms(
-        *_local_to_global_index_map_with_base_nodes, hydraulic_process_id);
-
-    // for the equations of deformation.
-    const int mechanical_process_id = 1;
-    initializeProcessBoundaryConditionsAndSourceTerms(
-        *_local_to_global_index_map, mechanical_process_id);
-}
-
-template <int DisplacementDim>
-void PhaseFieldAcidProcess<DisplacementDim>::assembleConcreteProcess(
-    const double t, double const dt, std::vector<GlobalVector*> const& x,
-    int const process_id, GlobalMatrix& M, GlobalMatrix& K, GlobalVector& b)
-{
-    DBUG("Assemble the equations for PhaseFieldAcid");
-
-    // Note: This assembly function is for the Picard nonlinear solver. Since
-    // only the Newton-Raphson method is employed to simulate coupled HM
-    // processes in this class, this function is actually not used so far.
-
-    std::vector<std::reference_wrapper<NumLib::LocalToGlobalIndexMap>>
-        dof_table = {std::ref(*_local_to_global_index_map)};
-    // Call global assembler for each local assembly item.
-    GlobalExecutor::executeMemberDereferenced(
-        _global_assembler, &VectorMatrixAssembler::assemble, _local_assemblers,
-        dof_table, t, dt, x, process_id, M, K, b, _coupled_solutions);
-}
-
-template <int DisplacementDim>
-void PhaseFieldAcidProcess<DisplacementDim>::
-    assembleWithJacobianConcreteProcess(
-        const double t, double const dt, std::vector<GlobalVector*> const& x,
-        GlobalVector const& xdot, const double dxdot_dx, const double dx_dx,
-        int const process_id, GlobalMatrix& M, GlobalMatrix& K, GlobalVector& b,
-        GlobalMatrix& Jac)
-{
-    std::vector<std::reference_wrapper<NumLib::LocalToGlobalIndexMap>>
-        dof_tables;
-    // For the monolithic scheme
-    if (_use_monolithic_scheme)
-    {
-        DBUG(
-            "Assemble the Jacobian of PhaseFieldAcid for the monolithic"
-            " scheme.");
-        dof_tables.emplace_back(*_local_to_global_index_map);
+        OGS_FATAL(
+            "Monolithic scheme is not implemented for the PhaseField_Acid "
+            "process.");
     }
     else
     {
-        // For the staggered scheme
-        if (process_id == 0)
+        ProcessLib::createLocalAssemblers<PhaseFieldAcidProcess>(
+            mesh.getDimension(), mesh.getElements(), dof_table,
+            pv.getShapeFunctionOrder(), _local_assemblers,
+            mesh.isAxiallySymmetric(), integration_order, _process_data,
+            _concentration_process_id, _phasefield_process_id);
+    }
+
+    _secondary_variables.addSecondaryVariable(
+        "darcy_velocity",
+        makeExtrapolator(
+            mesh.getDimension(), getExtrapolator(), _local_assemblers,
+            &PhaseFieldAcidLocalAssemblerInterface::getIntPtDarcyVelocity));
+}
+
+void PhaseFieldAcidProcess::assembleConcreteProcess(
+    const double t, double const dt, std::vector<GlobalVector*> const& x,
+    int const process_id, GlobalMatrix& M, GlobalMatrix& K, GlobalVector& b)
+{
+    std::vector<std::reference_wrapper<NumLib::LocalToGlobalIndexMap>>
+        dof_tables;
+    if (_use_monolithic_scheme)
+    {
+        OGS_FATAL(
+            "Monolithic scheme is not implemented for the PhaseField_Acid "
+            "process.");
+    }
+    else
+    {
+        if (process_id == _concentration_process_id)
         {
             DBUG(
-                "Assemble the Jacobian equations of liquid fluid process in "
-                "PhaseFieldAcid for the staggered scheme.");
+                "Assemble the equations of concentration process within "
+                "PhaseFieldAcidProcess.");
         }
         else
         {
             DBUG(
-                "Assemble the Jacobian equations of mechanical process in "
-                "PhaseFieldAcid for the staggered scheme.");
+                "Assemble the equations of phase-field process "
+                "within PhaseFieldAcidProcess.");
         }
-        dof_tables.emplace_back(*_local_to_global_index_map_with_base_nodes);
+        setCoupledSolutionsOfPreviousTimeStep();
+        dof_tables.emplace_back(*_local_to_global_index_map);
         dof_tables.emplace_back(*_local_to_global_index_map);
     }
 
     ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
+    // Call global assembler for each local assembly item.
+    GlobalExecutor::executeSelectedMemberDereferenced(
+        _global_assembler, &VectorMatrixAssembler::assemble, _local_assemblers,
+        pv.getActiveElementIDs(), dof_tables, t, dt, x, process_id, M, K, b,
+        _coupled_solutions);
+}
 
+void PhaseFieldAcidProcess::assembleWithJacobianConcreteProcess(
+    const double t, double const dt, std::vector<GlobalVector*> const& x,
+    GlobalVector const& xdot, const double dxdot_dx, const double dx_dx,
+    int const process_id, GlobalMatrix& M, GlobalMatrix& K, GlobalVector& b,
+    GlobalMatrix& Jac)
+{
+    DBUG("AssembleWithJacobian PhaseFieldAcidProcess.");
+
+    std::vector<std::reference_wrapper<NumLib::LocalToGlobalIndexMap>>
+        dof_tables;
+    if (!_use_monolithic_scheme)
+    {
+        OGS_FATAL(
+            "Monolithic scheme is not implemented for the PhaseField_Acid "
+            "process.");
+    }
+    else
+    {
+        dof_tables.emplace_back(std::ref(*_local_to_global_index_map));
+        dof_tables.emplace_back(std::ref(*_local_to_global_index_map));
+    }
+
+    // Call global assembler for each local assembly item.
+    ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
     GlobalExecutor::executeSelectedMemberDereferenced(
         _global_assembler, &VectorMatrixAssembler::assembleWithJacobian,
         _local_assemblers, pv.getActiveElementIDs(), dof_tables, t, dt, x, xdot,
         dxdot_dx, dx_dx, process_id, M, K, b, Jac, _coupled_solutions);
-
-    auto copyRhs = [&](int const variable_id, auto& output_vector) {
-        if (_use_monolithic_scheme)
-        {
-            transformVariableFromGlobalVector(b, variable_id, dof_tables[0],
-                                              output_vector,
-                                              std::negate<double>());
-        }
-        else
-        {
-            transformVariableFromGlobalVector(b, 0, dof_tables[process_id],
-                                              output_vector,
-                                              std::negate<double>());
-        }
-    };
-    if (_use_monolithic_scheme || process_id == 0)
-    {
-        copyRhs(0, *_hydraulic_flow);
-    }
-    if (_use_monolithic_scheme || process_id == 1)
-    {
-        copyRhs(1, *_nodal_forces);
-    }
 }
 
-template <int DisplacementDim>
-void PhaseFieldAcidProcess<DisplacementDim>::preTimestepConcreteProcess(
+void PhaseFieldAcidProcess::preTimestepConcreteProcess(
     std::vector<GlobalVector*> const& x, double const t, double const dt,
     const int process_id)
 {
-    DBUG("PreTimestep PhaseFieldAcidProcess.");
+    assert(process_id < 2);
 
-    if (hasMechanicalProcess(process_id))
-    {
-        ProcessLib::ProcessVariable const& pv =
-            getProcessVariables(process_id)[0];
-        GlobalExecutor::executeSelectedMemberOnDereferenced(
-            &LocalAssemblerInterface::preTimestep, _local_assemblers,
-            pv.getActiveElementIDs(), *_local_to_global_index_map,
-            *x[process_id], t, dt);
-    }
-}
-
-template <int DisplacementDim>
-void PhaseFieldAcidProcess<DisplacementDim>::postTimestepConcreteProcess(
-    std::vector<GlobalVector*> const& x, double const t, double const dt,
-    const int process_id)
-{
-    DBUG("PostTimestep PhaseFieldAcidProcess.");
-    ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
-    GlobalExecutor::executeSelectedMemberOnDereferenced(
-        &LocalAssemblerInterface::postTimestep, _local_assemblers,
-        pv.getActiveElementIDs(), getDOFTable(process_id), *x[process_id], t,
-        dt);
-}
-
-template <int DisplacementDim>
-void PhaseFieldAcidProcess<DisplacementDim>::postNonLinearSolverConcreteProcess(
-    GlobalVector const& x, const double t, double const dt,
-    const int process_id)
-{
-    if (!hasMechanicalProcess(process_id))
+    if (_use_monolithic_scheme)
     {
         return;
     }
 
-    DBUG("PostNonLinearSolver PhaseFieldAcidProcess.");
-    // Calculate strain, stress or other internal variables of mechanics.
-    ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
-    GlobalExecutor::executeSelectedMemberOnDereferenced(
-        &LocalAssemblerInterface::postNonLinearSolver, _local_assemblers,
-        pv.getActiveElementIDs(), getDOFTable(process_id), x, t, dt,
-        _use_monolithic_scheme);
+    if (!_xs_previous_timestep[process_id])
+    {
+        _xs_previous_timestep[process_id] =
+            MathLib::MatrixVectorTraits<GlobalVector>::newInstance(
+                *x[process_id]);
+    }
+    else
+    {
+        auto& x0 = *_xs_previous_timestep[process_id];
+        MathLib::LinAlg::copy(*x[process_id], x0);
+    }
+
+    auto& x0 = *_xs_previous_timestep[process_id];
+    MathLib::LinAlg::setLocalAccessibleVector(x0);
 }
 
-template <int DisplacementDim>
-void PhaseFieldAcidProcess<DisplacementDim>::computeSecondaryVariableConcrete(
-    const double t, GlobalVector const& x, const int process_id)
-{
-    DBUG("Compute the secondary variables for PhaseFieldAcidProcess.");
-    ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
-    GlobalExecutor::executeSelectedMemberOnDereferenced(
-        &LocalAssemblerInterface::computeSecondaryVariable, _local_assemblers,
-        pv.getActiveElementIDs(), getDOFTable(process_id), t, x,
-        _coupled_solutions);
-}
 
-template <int DisplacementDim>
 std::tuple<NumLib::LocalToGlobalIndexMap*, bool>
-PhaseFieldAcidProcess<DisplacementDim>::getDOFTableForExtrapolatorData() const
+PhaseFieldAcidProcess::getDOFTableForExtrapolatorData() const
 {
-    const bool manage_storage = false;
-    return std::make_tuple(_local_to_global_index_map_single_component.get(),
+    if (!_use_monolithic_scheme)
+    {
+        // For single-variable-single-component processes reuse the existing DOF
+        // table.
+        const bool manage_storage = false;
+        return std::make_tuple(_local_to_global_index_map.get(),
+                               manage_storage);
+    }
+
+    // Otherwise construct a new DOF table.
+    std::vector<MeshLib::MeshSubset> all_mesh_subsets_single_component{
+        *_mesh_subset_all_nodes};
+
+    const bool manage_storage = true;
+    return std::make_tuple(new NumLib::LocalToGlobalIndexMap(
+                               std::move(all_mesh_subsets_single_component),
+                               // by location order is needed for output
+                               NumLib::ComponentOrder::BY_LOCATION),
                            manage_storage);
 }
 
-template <int DisplacementDim>
-NumLib::LocalToGlobalIndexMap const&
-PhaseFieldAcidProcess<DisplacementDim>::getDOFTable(const int process_id) const
+
+
+void PhaseFieldAcidProcess::setCoupledSolutionsOfPreviousTimeStepPerProcess(
+    const int process_id)
 {
-    if (hasMechanicalProcess(process_id))
+    const auto& x_t0 = _xs_previous_timestep[process_id];
+    if (x_t0 == nullptr)
     {
-        return *_local_to_global_index_map;
+        OGS_FATAL(
+            "Memory is not allocated for the global vector of the solution of "
+            "the previous time step for the staggered scheme.\n It can be done "
+            "by overriding Process::preTimestepConcreteProcess (ref. "
+            "HTProcess::preTimestepConcreteProcess) ");
     }
 
-    // For the equation of pressure
-    return *_local_to_global_index_map_with_base_nodes;
+    _coupled_solutions->coupled_xs_t0[process_id] = x_t0.get();
 }
 
-template class PhaseFieldAcidProcess<2>;
-template class PhaseFieldAcidProcess<3>;
+void PhaseFieldAcidProcess::setCoupledSolutionsOfPreviousTimeStep()
+{
+    _coupled_solutions->coupled_xs_t0.resize(2);
+    setCoupledSolutionsOfPreviousTimeStepPerProcess(_concentration_process_id);
+    setCoupledSolutionsOfPreviousTimeStepPerProcess(_phasefield_process_id);
+}
+
+void PhaseFieldAcidProcess::postTimestepConcreteProcess(
+    std::vector<GlobalVector*> const& x, double const t, double const dt,
+    const int process_id)
+{
+    ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
+}
 
 }  // namespace PhaseFieldAcid
 }  // namespace ProcessLib
