@@ -96,7 +96,7 @@ private:
     /// Check whether the process represented by \c process_id is/has
     /// mechanical process. In the present implementation, the mechanical
     /// process has process_id == 0 in the staggered scheme.
-    bool isPhaseFieldProcess(int const process_id) const;
+    constexpr bool isPhaseFieldProcess(int const process_id) const;
 };
 
 }  // namespace PhaseFieldAcid

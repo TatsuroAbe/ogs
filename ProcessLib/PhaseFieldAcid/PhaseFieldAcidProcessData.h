@@ -7,16 +7,17 @@
  *              http://www.opengeosys.org/project/license
  *
  */
-
 #pragma once
 
 #include <Eigen/Eigen>
 #include <memory>
 #include <utility>
 
-namespace MaterialLib
+namespace MeshLib
 {
-}  // namespace MaterialLib
+template <typename T>
+class PropertyVector;
+}
 namespace ProcessLib
 {
 template <typename T>
@@ -26,7 +27,11 @@ namespace PhaseFieldAcid
 {
 struct PhaseFieldAcidProcessData
 {
+    MeshLib::PropertyVector<int> const* const material_ids = nullptr;
     Eigen::VectorXd const specific_body_force;
+
+    static constexpr int concentration_process_id = 0;
+    static constexpr int phasefield_process_id = 1;
 };
 
 }  // namespace PhaseFieldAcid

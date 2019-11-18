@@ -92,10 +92,11 @@ void PhaseFieldAcidProcess::initializeConcreteProcess(
     MeshLib::Mesh const& mesh,
     unsigned const integration_order)
 {
+    /* TODO (naumov)
     ProcessLib::createLocalAssemblers<PhaseFieldAcidLocalAssembler>(
-        mesh.getDimension(), mesh.getElements(), dof_table,
-        pv.getShapeFunctionOrder(), _local_assemblers,
+        mesh.getDimension(), mesh.getElements(), dof_table, _local_assemblers,
         mesh.isAxiallySymmetric(), integration_order, _process_data);
+        */
 
     // Initialize local assemblers after all variables have been set.
     GlobalExecutor::executeMemberOnDereferenced(
@@ -117,7 +118,7 @@ void PhaseFieldAcidProcess::initializeBoundaryConditions()
 }
 
 void PhaseFieldAcidProcess::assembleConcreteProcess(
-    const double t, double const dt, GlobalVector const& x,
+    const double t, double const dt, std::vector<GlobalVector*> const& x,
     int const process_id, GlobalMatrix& M, GlobalMatrix& K, GlobalVector& b)
 {
     DBUG("Assemble PhaseFieldAcidProcess.");
@@ -151,7 +152,7 @@ void PhaseFieldAcidProcess::assembleConcreteProcess(
 }
 
 void PhaseFieldAcidProcess::assembleWithJacobianConcreteProcess(
-    const double t, double const dt, GlobalVector const& x,
+    const double t, double const dt, std::vector<GlobalVector*> const& x,
     GlobalVector const& xdot, const double dxdot_dx, const double dx_dx,
     int const process_id, GlobalMatrix& M, GlobalMatrix& K, GlobalVector& b,
     GlobalMatrix& Jac)
@@ -186,24 +187,27 @@ void PhaseFieldAcidProcess::assembleWithJacobianConcreteProcess(
 }
 
 void PhaseFieldAcidProcess::preTimestepConcreteProcess(
-    GlobalVector const& x, double const t, double const dt,
+    std::vector<GlobalVector*> const& x, double const t, double const dt,
     const int process_id)
 {
     DBUG("PreTimestep PhaseFieldAcidProcess %d.", process_id);
 
+    /*  TODO (yoshioka) Maybe needed for xdot.
     _x_previous_timestep =
         MathLib::MatrixVectorTraits<GlobalVector>::newInstance(x);
+        */
 
     ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
 
     GlobalExecutor::executeSelectedMemberOnDereferenced(
         &LocalAssemblerInterface::preTimestep, _local_assemblers,
-        pv.getActiveElementIDs(), getDOFTable(process_id), x, t, dt);
+        pv.getActiveElementIDs(), getDOFTable(process_id), *x[process_id], t,
+        dt);
 }
 
 void PhaseFieldAcidProcess::postTimestepConcreteProcess(
-    GlobalVector const& x, const double t, const double /*delta_t*/,
-    int const process_id)
+    std::vector<GlobalVector*> const& x, const double t,
+    const double /*delta_t*/, int const process_id)
 {
     if (isPhaseFieldProcess(process_id))
     {
@@ -237,10 +241,10 @@ void PhaseFieldAcidProcess::postNonLinearSolverConcreteProcess(
 
 }
 
-bool PhaseFieldAcidProcess::isPhaseFieldProcess(
+constexpr bool PhaseFieldAcidProcess::isPhaseFieldProcess(
     int const process_id) const
 {
-    return process_id == 1;
+    return process_id == PhaseFieldAcidProcessData::phasefield_process_id;
 }
 
 }  // namespace PhaseFieldAcid

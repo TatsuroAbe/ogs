@@ -10,41 +10,17 @@
 
 #pragma once
 
-#include <memory>
-#include <vector>
-
-#include "LocalAssemblerInterface.h"
-#include "MathLib/LinAlg/Eigen/EigenMapTools.h"
-#include "NumLib/Fem/FiniteElement/TemplateIsoparametric.h"
-#include "NumLib/Fem/ShapeMatrixPolicy.h"
-#include "ParameterLib/SpatialPosition.h"
-#include "PhaseFieldAcidProcessData.h"
-#include "ProcessLib/Utils/InitShapeMatrices.h"
-
 namespace ProcessLib
 {
 namespace PhaseFieldAcid
 {
-template <typename ShapeFunction,
-          typename IntegrationMethod,
-          unsigned GlobalDim>
+template <typename ShapeMatrixType>
 struct IntegrationPointData final
 {
-    IntegrationPointData(NodalRowVectorType const& N_,
-                         GlobalDimNodalMatrixType const& dNdx_,
-                         double const& integration_weight_,
-                         NodalMatrixType const mass_operator_)
-        : N(N_),
-          dNdx(dNdx_),
-          integration_weight(integration_weight_),
-          mass_operator(mass_operator_)
-    {
-    }
-
-    NodalRowVectorType const N;
-    GlobalDimNodalMatrixType const dNdx;
+    typename ShapeMatrixType::NodalRowVectorType const N;
+    typename ShapeMatrixType::GlobalDimNodalMatrixType const dNdx;
     double const integration_weight;
-    NodalMatrixType const mass_operator;
+    typename ShapeMatrixType::NodalMatrixType const mass_operator;
 
     double dummy;
     double dummy_prev;

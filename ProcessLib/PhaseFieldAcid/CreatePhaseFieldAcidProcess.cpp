@@ -12,6 +12,7 @@
 
 #include <cassert>
 
+#include "MathLib/LinAlg/Eigen/EigenMapTools.h"
 #include "ParameterLib/Utils.h"
 #include "PhaseFieldAcidProcess.h"
 #include "PhaseFieldAcidProcessData.h"
@@ -70,8 +71,14 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
                 findProcessVariables(variables, pv_config, {variable_name});
             process_variables.push_back(std::move(per_process_variables));
         }
-        variable_c = &process_variables[0][0].get();
-        variable_ph = &process_variables[1][0].get();
+        variable_c =
+            &process_variables
+                 [PhaseFieldAcidProcessData::concentration_process_id][0]
+                     .get();
+        variable_ph =
+            &process_variables[PhaseFieldAcidProcessData::phasefield_process_id]
+                              [0]
+                                  .get();
     }
 
     DBUG("Associate concentration with process variable '%s'.",
@@ -126,18 +133,13 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
 
     SecondaryVariableCollection secondary_variables;
 
-    NumLib::NamedFunctionCaller named_function_caller(
-        {"PhaseField_displacement"});
+    ProcessLib::createSecondaryVariables(config, secondary_variables);
 
-    ProcessLib::createSecondaryVariables(config, secondary_variables,
-                                         named_function_caller);
-
-    return std::make_unique <
-           PhaseFieldAcidProcess(
-               std::move(name), mesh, std::move(jacobian_assembler), parameters,
-               integration_order, std::move(process_variables),
-               std::move(process_data), std::move(secondary_variables),
-               std::move(named_function_caller), use_monolithic_scheme);
+    return std::make_unique<PhaseFieldAcidProcess>(
+        std::move(name), mesh, std::move(jacobian_assembler), parameters,
+        integration_order, std::move(process_variables),
+        std::move(process_data), std::move(secondary_variables),
+        use_monolithic_scheme);
 }
 
 }  // namespace PhaseFieldAcid
