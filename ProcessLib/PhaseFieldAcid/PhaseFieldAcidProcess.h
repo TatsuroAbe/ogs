@@ -11,18 +11,14 @@
 #pragma once
 
 #include "ProcessLib/Process.h"
-#include "PhaseFieldAcidProcessData.h"
+
 #include "LocalAssemblerInterface.h"
+#include "PhaseFieldAcidProcessData.h"
 
 namespace ProcessLib
 {
 namespace PhaseFieldAcid
 {
-/// Linear kinematics poro-mechanical/biphasic (fluid-solid mixture) model.
-///
-/// The mixture momentum balance and the mixture mass balance are solved under
-/// fully saturated conditions.
-template <int DisplacementDim>
 class PhaseFieldAcidProcess final : public Process
 {
 public:
@@ -36,112 +32,81 @@ public:
         unsigned const integration_order,
         std::vector<std::vector<std::reference_wrapper<ProcessVariable>>>&&
             process_variables,
-        PhaseFieldAcidProcessData<DisplacementDim>&& process_data,
+        PhaseFieldAcidProcessData&& process_data,
         SecondaryVariableCollection&& secondary_variables,
+        NumLib::NamedFunctionCaller&& named_function_caller,
         bool const use_monolithic_scheme);
 
     //! \name ODESystem interface
     //! @{
-
     bool isLinear() const override;
     //! @}
 
-    /**
-     * Get the size and the sparse pattern of the global matrix in order to
-     * create the global matrices and vectors for the system equations of this
-     * process.
-     *
-     * @param process_id Process ID. If the monolithic scheme is applied,
-     *                               process_id = 0. For the staggered scheme,
-     *                               process_id = 0 represents the
-     *                               hydraulic (H) process, while process_id = 1
-     *                               represents the mechanical (M) process.
-     * @return Matrix specifications including size and sparse pattern.
-     */
     MathLib::MatrixSpecifications getMatrixSpecifications(
         const int process_id) const override;
 
+    NumLib::LocalToGlobalIndexMap const& getDOFTable(
+        const int process_id) const override;
+
 private:
+    using LocalAssemblerInterface = PhaseFieldAcidLocalAssemblerInterface;
+
     void constructDofTable() override;
+
+    void initializeBoundaryConditions() override;
 
     void initializeConcreteProcess(
         NumLib::LocalToGlobalIndexMap const& dof_table,
         MeshLib::Mesh const& mesh,
         unsigned const integration_order) override;
 
-    void initializeBoundaryConditions() override;
-
-    void assembleConcreteProcess(const double t, double const /*dt*/,
-                                 std::vector<GlobalVector*> const& x,
-                                 int const process_id, GlobalMatrix& M,
-                                 GlobalMatrix& K, GlobalVector& b) override;
+    void assembleConcreteProcess(const double t, double const dt,
+                                 GlobalVector const& x, int const process_id,
+                                 GlobalMatrix& M, GlobalMatrix& K,
+                                 GlobalVector& b) override;
 
     void assembleWithJacobianConcreteProcess(
-        const double t, double const /*dt*/,
-        std::vector<GlobalVector*> const& x, GlobalVector const& xdot,
-        const double dxdot_dx, const double dx_dx, int const process_id,
-        GlobalMatrix& M, GlobalMatrix& K, GlobalVector& b,
+        const double t, double const dt, GlobalVector const& x,
+        GlobalVector const& xdot, const double dxdot_dx, const double dx_dx,
+        int const process_id, GlobalMatrix& M, GlobalMatrix& K, GlobalVector& b,
         GlobalMatrix& Jac) override;
 
-    void preTimestepConcreteProcess(std::vector<GlobalVector*> const& x,
-                                    double const t, double const dt,
+    void preTimestepConcreteProcess(GlobalVector const& x, double const t,
+                                    double const dt,
                                     const int process_id) override;
 
-    void postTimestepConcreteProcess(std::vector<GlobalVector*> const& x,
-                                     const double t, const double delta_t,
+    void postTimestepConcreteProcess(GlobalVector const& x, const double t,
+                                     const double delta_t,
                                      int const process_id) override;
 
     void postNonLinearSolverConcreteProcess(GlobalVector const& x,
                                             const double t, double const dt,
                                             int const process_id) override;
 
-    NumLib::LocalToGlobalIndexMap const& getDOFTable(
-        const int process_id) const override;
+    void updateConstraints(GlobalVector& lower, GlobalVector& upper) override;
 
 private:
-    std::vector<MeshLib::Node*> _base_nodes;
-    std::unique_ptr<MeshLib::MeshSubset const> _mesh_subset_base_nodes;
-    PhaseFieldAcidProcessData<DisplacementDim> _process_data;
+    PhaseFieldAcidProcessData _process_data;
 
     std::vector<std::unique_ptr<LocalAssemblerInterface>> _local_assemblers;
 
     std::unique_ptr<NumLib::LocalToGlobalIndexMap>
         _local_to_global_index_map_single_component;
 
-    /// Local to global index mapping for base nodes, which is used for linear
-    /// interpolation for pressure in the staggered scheme.
-    std::unique_ptr<NumLib::LocalToGlobalIndexMap>
-        _local_to_global_index_map_with_base_nodes;
 
-    /// Sparsity pattern for the flow equation, and it is initialized only if
-    /// the staggered scheme is used.
-    GlobalSparsityPattern _sparsity_pattern_with_linear_element;
+    /// Sparsity pattern for the phase field equation, and it is initialized
+    ///  only if the staggered scheme is used.
+    GlobalSparsityPattern _sparsity_pattern_with_single_component;
 
-    /// Solutions of the previous time step
-    std::array<std::unique_ptr<GlobalVector>, 2> _xs_previous_timestep;
-
-    void computeSecondaryVariableConcrete(const double t, GlobalVector const& x,
-                                          const int process_id) override;
-    /**
-     * @copydoc ProcessLib::Process::getDOFTableForExtrapolatorData()
-     */
-    std::tuple<NumLib::LocalToGlobalIndexMap*, bool>
-        getDOFTableForExtrapolatorData() const override;
+    /// Previous time step solution used for the constraints.
+    std::unique_ptr<GlobalVector> _x_previous_timestep;
 
     /// Check whether the process represented by \c process_id is/has
     /// mechanical process. In the present implementation, the mechanical
-    /// process has process_id == 1 in the staggered scheme.
-    bool hasMechanicalProcess(int const process_id) const
-    {
-        return _use_monolithic_scheme || process_id == 1;
-    }
-
-    MeshLib::PropertyVector<double>* _nodal_forces = nullptr;
-    MeshLib::PropertyVector<double>* _hydraulic_flow = nullptr;
+    /// process has process_id == 0 in the staggered scheme.
+    bool isPhaseFieldProcess(int const process_id) const;
 };
 
-extern template class PhaseFieldAcidProcess<2>;
-extern template class PhaseFieldAcidProcess<3>;
 
-}  // namespace PhaseFieldAcid
+}  // namespace PhaseField
 }  // namespace ProcessLib

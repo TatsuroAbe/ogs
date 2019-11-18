@@ -12,20 +12,16 @@
 
 #include <cassert>
 
-#include "MaterialLib/SolidModels/CreateConstitutiveRelation.h"
-#include "MaterialLib/SolidModels/MechanicsBase.h"
 #include "ParameterLib/Utils.h"
+#include "PhaseFieldAcidProcess.h"
+#include "PhaseFieldAcidProcessData.h"
 #include "ProcessLib/Output/CreateSecondaryVariables.h"
 #include "ProcessLib/Utils/ProcessUtils.h"
 
-#include "PhaseFieldAcidProcess.h"
-#include "PhaseFieldAcidProcessData.h"
-
 namespace ProcessLib
 {
-namespace PhaseFieldAcid
+namespace PhaseField
 {
-template <int DisplacementDim>
 std::unique_ptr<Process> createPhaseFieldAcidProcess(
     std::string name,
     MeshLib::Mesh& mesh,
@@ -38,225 +34,111 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
     BaseLib::ConfigTree const& config)
 {
     //! \ogs_file_param{prj__processes__process__type}
-    config.checkConfigParameter("type", "PHASEFIELD_ACID");
+    config.checkConfigParameter("type", "PHASEFIELD_Acid");
     DBUG("Create PhaseFieldAcidProcess.");
 
     auto const staggered_scheme =
-        //! \ogs_file_param{prj__processes__process__HYDRO_MECHANICS__coupling_scheme}
+        //! \ogs_file_param{prj__processes__process__PHASEFIELD_ACID__coupling_scheme}
         config.getConfigParameterOptional<std::string>("coupling_scheme");
     const bool use_monolithic_scheme =
         !(staggered_scheme && (*staggered_scheme == "staggered"));
 
     // Process variable.
 
-    //! \ogs_file_param{prj__processes__process__HYDRO_MECHANICS__process_variables}
+    //! \ogs_file_param{prj__processes__process__PHASEFIELD_ACID__process_variables}
     auto const pv_config = config.getConfigSubtree("process_variables");
 
-    ProcessVariable* variable_p;
-    ProcessVariable* variable_u;
+    ProcessVariable* variable_ph;
+    ProcessVariable* variable_c;
     std::vector<std::vector<std::reference_wrapper<ProcessVariable>>>
         process_variables;
     if (use_monolithic_scheme)  // monolithic scheme.
     {
-        auto per_process_variables = findProcessVariables(
-            variables, pv_config,
-            {//! \ogs_file_param_special{prj__processes__process__HYDRO_MECHANICS__process_variables__pressure}
-            "pressure",
-            //! \ogs_file_param_special{prj__processes__process__HYDRO_MECHANICS__process_variables__displacement}
-            "displacement"});
-        variable_p = &per_process_variables[0].get();
-        variable_u = &per_process_variables[1].get();
-        process_variables.push_back(std::move(per_process_variables));
+        OGS_FATAL("Monolithic implementation is not available.");
     }
     else  // staggered scheme.
     {
         using namespace std::string_literals;
-        for (auto const& variable_name : {"pressure"s, "displacement"s})
+        for (
+            auto const& variable_name :
+            {//! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__process_variables__concentration}
+             "concentration"s,
+             //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__process_variables__phasefield}
+             "phasefield"s})
         {
             auto per_process_variables =
                 findProcessVariables(variables, pv_config, {variable_name});
             process_variables.push_back(std::move(per_process_variables));
         }
-        variable_p = &process_variables[0][0].get();
-        variable_u = &process_variables[1][0].get();
+        variable_c = &process_variables[0][0].get();
+        variable_ph = &process_variables[1][0].get();
     }
 
-    DBUG("Associate displacement with process variable '%s'.",
-         variable_u->getName().c_str());
+    DBUG("Associate concentration with process variable '%s'.",
+         variable_c->getName().c_str());
 
-    if (variable_u->getNumberOfComponents() != DisplacementDim)
+    if (variable_c->getNumberOfComponents() != 1)
     {
         OGS_FATAL(
-            "Number of components of the process variable '%s' is different "
-            "from the displacement dimension: got %d, expected %d",
-            variable_u->getName().c_str(),
-            variable_u->getNumberOfComponents(),
-            DisplacementDim);
-    }
-
-    DBUG("Associate pressure with process variable '%s'.",
-         variable_p->getName().c_str());
-    if (variable_p->getNumberOfComponents() != 1)
-    {
-        OGS_FATAL(
-            "Pressure process variable '%s' is not a scalar variable but has "
+            "Phasefield process variable '%s' is not a scalar variable but has "
             "%d components.",
-            variable_p->getName().c_str(),
-            variable_p->getNumberOfComponents());
+            variable_ph->getName().c_str(),
+            variable_ph->getNumberOfComponents());
     }
 
-    auto solid_constitutive_relations =
-        MaterialLib::Solids::createConstitutiveRelations<DisplacementDim>(
-            parameters, local_coordinate_system, config);
-
-    // Intrinsic permeability
-    auto& intrinsic_permeability = ParameterLib::findParameter<double>(
-        config,
-        //! \ogs_file_param_special{prj__processes__process__HYDRO_MECHANICS__intrinsic_permeability}
-        "intrinsic_permeability", parameters, 1, &mesh);
-
-    DBUG("Use '%s' as intrinsic conductivity parameter.",
-         intrinsic_permeability.name.c_str());
-
-    // Fluid viscosity
-    auto& fluid_viscosity = ParameterLib::findParameter<double>(
-        config,
-        //! \ogs_file_param_special{prj__processes__process__HYDRO_MECHANICS__fluid_viscosity}
-        "fluid_viscosity", parameters, 1, &mesh);
-    DBUG("Use '%s' as fluid viscosity parameter.",
-         fluid_viscosity.name.c_str());
-
-    // Fluid density
-    auto& fluid_density = ParameterLib::findParameter<double>(
-        config,
-        //! \ogs_file_param_special{prj__processes__process__HYDRO_MECHANICS__fluid_density}
-        "fluid_density", parameters, 1, &mesh);
-    DBUG("Use '%s' as fluid density parameter.", fluid_density.name.c_str());
-
-    // Biot coefficient
-    auto& biot_coefficient = ParameterLib::findParameter<double>(
-        config,
-        //! \ogs_file_param_special{prj__processes__process__HYDRO_MECHANICS__biot_coefficient}
-        "biot_coefficient", parameters, 1, &mesh);
-    DBUG("Use '%s' as Biot coefficient parameter.",
-         biot_coefficient.name.c_str());
-
-    // Porosity
-    auto& porosity = ParameterLib::findParameter<double>(
-        config,
-        //! \ogs_file_param_special{prj__processes__process__HYDRO_MECHANICS__porosity}
-        "porosity", parameters, 1, &mesh);
-    DBUG("Use '%s' as porosity parameter.", porosity.name.c_str());
-
-    // Solid density
-    auto& solid_density = ParameterLib::findParameter<double>(
-        config,
-        //! \ogs_file_param_special{prj__processes__process__HYDRO_MECHANICS__solid_density}
-        "solid_density", parameters, 1, &mesh);
-    DBUG("Use '%s' as solid density parameter.", solid_density.name.c_str());
-
-    // Specific body force
-    Eigen::Matrix<double, DisplacementDim, 1> specific_body_force;
+    DBUG("Associate phase field with process variable '%s'.",
+         variable_ph->getName().c_str());
+    if (variable_ph->getNumberOfComponents() != 1)
     {
-        std::vector<double> const b =
-            //! \ogs_file_param{prj__processes__process__HYDRO_MECHANICS__specific_body_force}
-            config.getConfigParameter<std::vector<double>>(
-                "specific_body_force");
-        if (b.size() != DisplacementDim)
-        {
-            OGS_FATAL(
-                "The size of the specific body force vector does not match the "
-                "displacement dimension. Vector size is %d, displacement "
-                "dimension is %d",
-                b.size(), DisplacementDim);
-        }
+        OGS_FATAL(
+            "Phasefield process variable '%s' is not a scalar variable but has "
+            "%d components.",
+            variable_ph->getName().c_str(),
+            variable_ph->getNumberOfComponents());
+    }
 
+    auto const phasefield_parameters_config =
+        //! \ogs_file_param{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters}
+        config.getConfigSubtree("phasefieldacid_parameters");
+
+    // Specific body force parameter.
+    Eigen::VectorXd specific_body_force;
+    std::vector<double> const b =
+        //! \ogs_file_param{prj__processes__process__HT__specific_body_force}
+        config.getConfigParameter<std::vector<double>>("specific_body_force");
+    assert(!b.empty() && b.size() < 4);
+    if (b.size() < mesh.getDimension())
+    {
+        OGS_FATAL(
+            "specific body force (gravity vector) has %d components, mesh "
+            "dimension is %d",
+            b.size(), mesh.getDimension());
+    }
+    bool const has_gravity = MathLib::toVector(b).norm() > 0;
+    if (has_gravity)
+    {
+        specific_body_force.resize(b.size());
         std::copy_n(b.data(), b.size(), specific_body_force.data());
     }
 
-    // Initial stress conditions
-    auto const initial_stress = ParameterLib::findOptionalTagParameter<double>(
-        //! \ogs_file_param_special{prj__processes__process__HYDRO_MECHANICS__initial_stress}
-        config, "initial_stress", parameters,
-        // Symmetric tensor size, 4 or 6, not a Kelvin vector.
-        MathLib::KelvinVector::KelvinVectorDimensions<DisplacementDim>::value,
-        &mesh);
-
-    // Reference temperature
-    double const reference_temperature =
-        //! \ogs_file_param{prj__processes__process__HYDRO_MECHANICS__reference_temperature}
-        config.getConfigParameter<double>(
-            "reference_temperature", std::numeric_limits<double>::quiet_NaN());
-    DBUG("Use 'reference_temperature' as reference temperature.");
-
-    //Specific gas constant
-    double const specific_gas_constant =
-        //! \ogs_file_param{prj__processes__process__HYDRO_MECHANICS__specific_gas_constant}
-        config.getConfigParameter<double>(
-            "specific_gas_constant", std::numeric_limits<double>::quiet_NaN());
-    DBUG("Use 'specific_gas_constant' as specific gas constant.");
-
-    // Fluid compressibility
-    double const fluid_compressibility =
-        //! \ogs_file_param{prj__processes__process__HYDRO_MECHANICS__fluid_compressibility}
-        config.getConfigParameter<double>(
-            "fluid_compressibility", std::numeric_limits<double>::quiet_NaN());
-    DBUG("Use 'fluid_compressibility' as fluid compressibility parameter.");
-
-    auto const fluid_type =
-        FluidType::strToFluidType(
-            //! \ogs_file_param{prj__processes__process__HYDRO_MECHANICS__fluid_type}
-            config.getConfigParameter<std::string>("fluid_type"));
-    DBUG("Use 'fluid_type' as fluid type parameter.");
-
-    if (!FluidType::checkRequiredParams(fluid_type, fluid_compressibility,
-                                        reference_temperature,
-                                        specific_gas_constant))
-    {
-        OGS_FATAL(FluidType::getErrorMsg(fluid_type));
-    }
-
-    PhaseFieldAcidProcessData<DisplacementDim> process_data{
-        materialIDs(mesh),     std::move(solid_constitutive_relations),
-        initial_stress,        intrinsic_permeability,
-        fluid_viscosity,       fluid_density,
-        biot_coefficient,      porosity,
-        solid_density,         specific_body_force,
-        fluid_compressibility, reference_temperature,
-        specific_gas_constant, fluid_type};
+    PhaseFieldAcidProcessData process_data{materialIDs(mesh),
+                                           specific_body_force};
 
     SecondaryVariableCollection secondary_variables;
 
-    ProcessLib::createSecondaryVariables(config, secondary_variables);
+    NumLib::NamedFunctionCaller named_function_caller(
+        {"PhaseField_displacement"});
 
-    return std::make_unique<PhaseFieldAcidProcess<DisplacementDim>>(
-        std::move(name), mesh, std::move(jacobian_assembler), parameters,
-        integration_order, std::move(process_variables),
-        std::move(process_data), std::move(secondary_variables),
-        use_monolithic_scheme);
+    ProcessLib::createSecondaryVariables(config, secondary_variables,
+                                         named_function_caller);
+
+    return std::make_unique <
+           PhaseFieldAcidProcess(
+               std::move(name), mesh, std::move(jacobian_assembler), parameters,
+               integration_order, std::move(process_variables),
+               std::move(process_data), std::move(secondary_variables),
+               std::move(named_function_caller), use_monolithic_scheme);
 }
 
-template std::unique_ptr<Process> createPhaseFieldAcidProcess<2>(
-    std::string name,
-    MeshLib::Mesh& mesh,
-    std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
-    std::vector<ProcessVariable> const& variables,
-    std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const& parameters,
-    boost::optional<ParameterLib::CoordinateSystem> const&
-        local_coordinate_system,
-    unsigned const integration_order,
-    BaseLib::ConfigTree const& config);
-
-template std::unique_ptr<Process> createPhaseFieldAcidProcess<3>(
-    std::string name,
-    MeshLib::Mesh& mesh,
-    std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
-    std::vector<ProcessVariable> const& variables,
-    std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const& parameters,
-    boost::optional<ParameterLib::CoordinateSystem> const&
-        local_coordinate_system,
-    unsigned const integration_order,
-    BaseLib::ConfigTree const& config);
-
-}  // namespace PhaseFieldAcid
+}  // namespace PhaseField
 }  // namespace ProcessLib

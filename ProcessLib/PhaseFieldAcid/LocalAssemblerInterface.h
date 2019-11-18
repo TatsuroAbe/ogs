@@ -10,28 +10,25 @@
 
 #pragma once
 
+#include <vector>
+
 #include "NumLib/Extrapolation/ExtrapolatableElement.h"
 #include "ProcessLib/LocalAssemblerInterface.h"
+#include "MathLib/LinAlg/Eigen/EigenMapTools.h"
+#include "MeshLib/Elements/Elements.h"
 
 namespace ProcessLib
 {
 namespace PhaseFieldAcid
 {
-struct LocalAssemblerInterface
+struct PhaseFieldAcidLocalAssemblerInterface
     : public ProcessLib::LocalAssemblerInterface,
       public NumLib::ExtrapolatableElement
 {
-    virtual std::size_t setIPDataInitialConditions(
-        std::string const& name, double const* values,
-        int const integration_order) = 0;
-
- 
-
-    virtual std::vector<double> const& getIntPtDarcyVelocity(
-        const double t,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const = 0;
+    Eigen::Vector3d getFlux(MathLib::Point3d const& pnt_local_coords,
+                            double const t,
+                            std::vector<double> const& local_x) const override =
+        0;
 };
 
 }  // namespace PhaseFieldAcid

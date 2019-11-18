@@ -13,455 +13,208 @@
 #include <memory>
 #include <vector>
 
-#include "MaterialLib/PhysicalConstant.h"
-#include "MaterialLib/SolidModels/LinearElasticIsotropic.h"
-#include "MathLib/KelvinVector.h"
-#include "MathLib/LinAlg/Eigen/EigenMapTools.h"
-#include "NumLib/DOF/DOFTableUtil.h"
-#include "NumLib/Fem/ShapeMatrixPolicy.h"
-#include "ParameterLib/Parameter.h"
-#include "ProcessLib/Deformation/BMatrixPolicy.h"
-#include "ProcessLib/Deformation/LinearBMatrix.h"
-#include "ProcessLib/LocalAssemblerTraits.h"
-#include "ProcessLib/Utils/InitShapeMatrices.h"
-
-#include "PhaseFieldAcidProcessData.h"
 #include "LocalAssemblerInterface.h"
+#include "MathLib/LinAlg/Eigen/EigenMapTools.h"
+#include "NumLib/Fem/FiniteElement/TemplateIsoparametric.h"
+#include "NumLib/Fem/ShapeMatrixPolicy.h"
+#include "ParameterLib/SpatialPosition.h"
+#include "PhaseFieldAcidProcessData.h"
+#include "ProcessLib/Utils/InitShapeMatrices.h"
 
 namespace ProcessLib
 {
 namespace PhaseFieldAcid
 {
-template <typename BMatricesType, typename ShapeMatrixTypeDisplacement,
-          typename ShapeMatricesTypePressure, int DisplacementDim, int NPoints>
+template <typename ShapeFunction, typename IntegrationMethod,
+          unsigned GlobalDim>
 struct IntegrationPointData final
 {
-    explicit IntegrationPointData(
-        MaterialLib::Solids::MechanicsBase<DisplacementDim> const&
-            solid_material)
-        : solid_material(solid_material),
-          material_state_variables(
-              solid_material.createMaterialStateVariables())
     {
-    }
-
-    typename ShapeMatrixTypeDisplacement::template MatrixType<
-        DisplacementDim, NPoints * DisplacementDim>
-        N_u_op;
-    typename BMatricesType::KelvinVectorType sigma_eff, sigma_eff_prev;
-    typename BMatricesType::KelvinVectorType eps, eps_prev;
-
-    typename ShapeMatrixTypeDisplacement::NodalRowVectorType N_u;
-    typename ShapeMatrixTypeDisplacement::GlobalDimNodalMatrixType dNdx_u;
-
-    typename ShapeMatricesTypePressure::NodalRowVectorType N_p;
-    typename ShapeMatricesTypePressure::GlobalDimNodalMatrixType dNdx_p;
-
-    MaterialLib::Solids::MechanicsBase<DisplacementDim> const& solid_material;
-    std::unique_ptr<typename MaterialLib::Solids::MechanicsBase<
-        DisplacementDim>::MaterialStateVariables>
-        material_state_variables;
-    double integration_weight;
-
-    void pushBackState()
-    {
-        eps_prev = eps;
-        sigma_eff_prev = sigma_eff;
-        material_state_variables->pushBackState();
-    }
-
-    template <typename DisplacementVectorType>
-    typename BMatricesType::KelvinMatrixType updateConstitutiveRelation(
-        double const t,
-        ParameterLib::SpatialPosition const& x_position,
-        double const dt,
-        DisplacementVectorType const& /*u*/,
-        double const T)
-    {
-        auto&& solution = solid_material.integrateStress(
-            t, x_position, dt, eps_prev, eps, sigma_eff_prev,
-            *material_state_variables, T);
-
-        if (!solution)
+        IntegrationPointData(NodalRowVectorType const& N_,
+                             GlobalDimNodalMatrixType const& dNdx_,
+                             double const& integration_weight_,
+                             NodalMatrixType const mass_operator_)
+            : N(N_),
+              dNdx(dNdx_),
+              integration_weight(integration_weight_),
+              mass_operator(mass_operator_)
         {
-            OGS_FATAL("Computation of local constitutive relation failed.");
         }
 
-        MathLib::KelvinVector::KelvinMatrixType<DisplacementDim> C;
-        std::tie(sigma_eff, material_state_variables, C) = std::move(*solution);
+        NodalRowVectorType const N;
+        GlobalDimNodalMatrixType const dNdx;
+        double const integration_weight;
+        NodalMatrixType const mass_operator;
 
-        return C;
-    }
+        double dummy;
+        double dummy_prev;
 
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-};
+        void pushBackState() { dummy_prev = dummy; }
 
-/// Used for the extrapolation of the integration point values. It is ordered
-/// (and stored) by integration points.
-template <typename ShapeMatrixType>
-struct SecondaryData
-{
-    std::vector<ShapeMatrixType, Eigen::aligned_allocator<ShapeMatrixType>> N_u;
-};
+        EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 
-template <typename ShapeFunctionDisplacement, typename ShapeFunctionPressure,
-          typename IntegrationMethod, int DisplacementDim>
-class PhaseFieldAcidLocalAssembler : public LocalAssemblerInterface
-{
-public:
-    using ShapeMatricesTypeDisplacement =
-        ShapeMatrixPolicyType<ShapeFunctionDisplacement, DisplacementDim>;
+        static constexpr int kelvin_vector_size =
+            MathLib::KelvinVector::KelvinVectorDimensions<
+                DisplacementDim>::value;
+    };
 
-    // Types for pressure.
-    using ShapeMatricesTypePressure =
-        ShapeMatrixPolicyType<ShapeFunctionPressure, DisplacementDim>;
-
-    static int const KelvinVectorSize =
-        MathLib::KelvinVector::KelvinVectorDimensions<DisplacementDim>::value;
-    using Invariants = MathLib::KelvinVector::Invariants<KelvinVectorSize>;
-
-    PhaseFieldAcidLocalAssembler(PhaseFieldAcidLocalAssembler const&) = delete;
-    PhaseFieldAcidLocalAssembler(PhaseFieldAcidLocalAssembler&&) = delete;
-
-    PhaseFieldAcidLocalAssembler(
-        MeshLib::Element const& e,
-        std::size_t const /*local_matrix_size*/,
-        bool const is_axially_symmetric,
-        unsigned const integration_order,
-        PhaseFieldAcidProcessData<DisplacementDim>& process_data);
-
-    /// Returns number of read integration points.
-    std::size_t setIPDataInitialConditions(
-        std::string const& name,
-        double const* values,
-        int const integration_order) override;
-
-    void assemble(double const /*t*/, double const /*dt*/,
-                  std::vector<double> const& /*local_x*/,
-                  std::vector<double>& /*local_M_data*/,
-                  std::vector<double>& /*local_K_data*/,
-                  std::vector<double>& /*local_rhs_data*/) override
+    /// Used for the extrapolation of the integration point values. It is
+    /// ordered (and stored) by integration points.
+    template <typename ShapeMatrixType>
+    struct SecondaryData
     {
-        OGS_FATAL(
-            "PhaseFieldAcidLocalAssembler: assembly without jacobian is not "
-            "implemented.");
-    }
+        std::vector<ShapeMatrixType, Eigen::aligned_allocator<ShapeMatrixType>>
+            N;
+    };
 
-    void assembleWithJacobian(double const t, double const dt,
-                              std::vector<double> const& local_x,
-                              std::vector<double> const& local_xdot,
-                              const double /*dxdot_dx*/, const double /*dx_dx*/,
-                              std::vector<double>& /*local_M_data*/,
-                              std::vector<double>& /*local_K_data*/,
-                              std::vector<double>& local_rhs_data,
-                              std::vector<double>& local_Jac_data) override;
-
-    void assembleWithJacobianForStaggeredScheme(
-        double const t, double const dt, std::vector<double> const& local_xdot,
-        const double dxdot_dx, const double dx_dx, int const process_id,
-        std::vector<double>& local_M_data, std::vector<double>& local_K_data,
-        std::vector<double>& local_b_data, std::vector<double>& local_Jac_data,
-        LocalCoupledSolutions const& local_coupled_solutions) override;
-
-    void initializeConcrete() override
+    template <typename ShapeFunction, typename IntegrationMethod,
+              unsigned GlobalDim>
+    class PhaseFieldAcidLocalAssembler
+        : public PhaseFieldAcidLocalAssemblerInterface
     {
-        unsigned const n_integration_points =
-            _integration_method.getNumberOfPoints();
+    public:
+        using ShapeMatricesType = ShapeMatrixPolicyType<ShapeFunction>;
 
-        for (unsigned ip = 0; ip < n_integration_points; ip++)
+        using ShapeMatrices = typename ShapeMatricesType::ShapeMatrices;
+
+        PhaseFieldAcidLocalAssembler(PhaseFieldAcidLocalAssembler const&) =
+            delete;
+        PhaseFieldAcidLocalAssembler(PhaseFieldAcidLocalAssembler&&) = delete;
+
+        PhaseFieldAcidLocalAssembler(MeshLib::Element const& e,
+                                     std::size_t const /*local_matrix_size*/,
+                                     bool const is_axially_symmetric,
+                                     unsigned const integration_order,
+                                     PhaseFieldAcidProcessData& process_data)
+            : _process_data(process_data),
+              _integration_method(integration_order),
+              _element(e),
+              _is_axially_symmetric(is_axially_symmetric)
         {
-            _ip_data[ip].pushBackState();
-        }
-    }
+            unsigned const n_integration_points =
+                _integration_method.getNumberOfPoints();
 
-    void postTimestepConcrete(std::vector<double> const& /*local_x*/,
-                              double const /*t*/,
-                              double const /*dt*/) override
-    {
-        unsigned const n_integration_points =
-            _integration_method.getNumberOfPoints();
+            _ip_data.reserve(n_integration_points);
+            _secondary_data.N.resize(n_integration_points);
 
-        for (unsigned ip = 0; ip < n_integration_points; ip++)
-        {
-            _ip_data[ip].pushBackState();
-        }
-    }
+            auto const shape_matrices =
+                initShapeMatrices<ShapeFunction, IntegrationMethod, GlobalDim>(
+                    e, is_axially_symmetric, _integration_method);
 
-    void computeSecondaryVariableConcrete(
-        double const t, std::vector<double> const& local_x) override;
-    void postNonLinearSolverConcrete(std::vector<double> const& local_x,
-                                     double const t, double const dt,
-                                     bool const use_monolithic_scheme) override;
+            ParameterLib::SpatialPosition x_position;
+            x_position.setElementID(_element.getID());
 
-    Eigen::Map<const Eigen::RowVectorXd> getShapeMatrix(
-        const unsigned integration_point) const override
-    {
-        auto const& N_u = _secondary_data.N_u[integration_point];
+            for (unsigned ip = 0; ip < n_integration_points; ip++)
+            {
+                auto& ip_data = _ip_data[ip];
+                ip_data.integration_weight =
+                    _integration_method.getWeightedPoint(ip).getWeight() *
+                    shape_matrices[ip].integralMeasure *
+                    shape_matrices[ip].detJ;
 
-        // assumes N is stored contiguously in memory
-        return Eigen::Map<const Eigen::RowVectorXd>(N_u.data(), N_u.size());
-    }
+                ip_data.dummy = 0.0;
+                ip_data.dummy_prev = 0.0;
 
-    std::size_t setSigma(double const* values);
+                ip_data.N = shape_matrices[ip].N;
+                ip_data.dNdx = shape_matrices[ip].dNdx;
 
-    // TODO (naumov) This method is same as getIntPtSigma but for arguments and
-    // the ordering of the cache_mat.
-    // There should be only one.
-    std::vector<double> getSigma() const override;
-
-    std::size_t setEpsilon(double const* values);
-
-    std::vector<double> getEpsilon() const override;
-
-    std::vector<double> const& getIntPtSigmaXX(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& /*x*/,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& /*dof_table*/,
-        std::vector<double>& cache) const override
-    {
-        return getIntPtSigma(cache, 0);
-    }
-
-    std::vector<double> const& getIntPtSigmaYY(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& /*x*/,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& /*dof_table*/,
-        std::vector<double>& cache) const override
-    {
-        return getIntPtSigma(cache, 1);
-    }
-
-    std::vector<double> const& getIntPtSigmaZZ(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& /*x*/,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& /*dof_table*/,
-        std::vector<double>& cache) const override
-    {
-        return getIntPtSigma(cache, 2);
-    }
-
-    std::vector<double> const& getIntPtSigmaXY(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& /*x*/,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& /*dof_table*/,
-        std::vector<double>& cache) const override
-    {
-        return getIntPtSigma(cache, 3);
-    }
-
-    std::vector<double> const& getIntPtSigmaXZ(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& /*x*/,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& /*dof_table*/,
-        std::vector<double>& cache) const override
-    {
-        assert(DisplacementDim == 3);
-        return getIntPtSigma(cache, 4);
-    }
-
-    std::vector<double> const& getIntPtSigmaYZ(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& /*x*/,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& /*dof_table*/,
-        std::vector<double>& cache) const override
-    {
-        assert(DisplacementDim == 3);
-        return getIntPtSigma(cache, 5);
-    }
-
-    std::vector<double> const& getIntPtEpsilonXX(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& /*x*/,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& /*dof_table*/,
-        std::vector<double>& cache) const override
-    {
-        return getIntPtEpsilon(cache, 0);
-    }
-
-    std::vector<double> const& getIntPtEpsilonYY(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& /*x*/,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& /*dof_table*/,
-        std::vector<double>& cache) const override
-    {
-        return getIntPtEpsilon(cache, 1);
-    }
-
-    std::vector<double> const& getIntPtEpsilonZZ(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& /*x*/,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& /*dof_table*/,
-        std::vector<double>& cache) const override
-    {
-        return getIntPtEpsilon(cache, 2);
-    }
-
-    std::vector<double> const& getIntPtEpsilonXY(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& /*x*/,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& /*dof_table*/,
-        std::vector<double>& cache) const override
-    {
-        return getIntPtEpsilon(cache, 3);
-    }
-
-    std::vector<double> const& getIntPtEpsilonXZ(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& /*x*/,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& /*dof_table*/,
-        std::vector<double>& cache) const override
-    {
-        assert(DisplacementDim == 3);
-        return getIntPtEpsilon(cache, 4);
-    }
-
-    std::vector<double> const& getIntPtEpsilonYZ(
-        const double /*t*/,
-        std::vector<GlobalVector*> const& /*x*/,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& /*dof_table*/,
-        std::vector<double>& cache) const override
-    {
-        assert(DisplacementDim == 3);
-        return getIntPtEpsilon(cache, 5);
-    }
-
-    std::vector<double> const& getIntPtDarcyVelocity(
-        const double t,
-        std::vector<GlobalVector*> const& x,
-        std::vector<NumLib::LocalToGlobalIndexMap const*> const& dof_table,
-        std::vector<double>& cache) const override;
-
-private:
-    std::vector<double> const& getIntPtSigma(std::vector<double>& cache,
-                                             std::size_t const component) const
-    {
-        cache.clear();
-        cache.reserve(_ip_data.size());
-
-        for (auto const& ip_data : _ip_data)
-        {
-            if (component < 3)
-            {  // xx, yy, zz components
-                cache.push_back(ip_data.sigma_eff[component]);
-            }
-            else
-            {  // mixed xy, yz, xz components
-                cache.push_back(ip_data.sigma_eff[component] / std::sqrt(2));
+                _secondary_data.N[ip] = shape_matrices[ip].N;
             }
         }
 
-        return cache;
-    }
-
-    std::vector<double> const& getIntPtEpsilon(
-        std::vector<double>& cache, std::size_t const component) const
-    {
-        cache.clear();
-        cache.reserve(_ip_data.size());
-
-        for (auto const& ip_data : _ip_data)
+        void assemble(double const /*t*/, double const /*dt*/,
+                      std::vector<double> const& /*local_x*/,
+                      std::vector<double>& /*local_M_data*/,
+                      std::vector<double>& /*local_K_data*/,
+                      std::vector<double>& /*local_rhs_data*/) override
         {
-            cache.push_back(ip_data.eps[component]);
+            OGS_FATAL(
+                "PhaseFieldLocalAssembler: assembly without jacobian is not "
+                "implemented.");
         }
 
-        return cache;
-    }
+        void assembleWithJacobianForStaggeredScheme(
+            double const t, double const dt,
+            std::vector<double> const& local_xdot, const double dxdot_dx,
+            const double dx_dx, int const process_id,
+            std::vector<double>& local_M_data,
+            std::vector<double>& local_K_data,
+            std::vector<double>& local_b_data,
+            std::vector<double>& local_Jac_data,
+            LocalCoupledSolutions const& local_coupled_solutions) override;
 
-    /**
-     * Assemble local matrices and vectors arise from the linearized discretized
-     * weak form of the residual of the momentum balance equation,
-     *      \f[
-     *            \nabla (\sigma - \alpha_b p \mathrm{I}) = f
-     *      \f]
-     * where \f$ \sigma\f$ is the effective stress tensor, \f$p\f$ is the pore
-     * pressure, \f$\alpha_b\f$ is the Biot constant, \f$\mathrm{I}\f$ is the
-     * identity tensor, and \f$f\f$ is the body force.
-     *
-     * @param t               Time
-     * @param dt              Time increment
-     * @param local_xdot      Nodal values of \f$\dot{x}\f$ of an element.
-     * @param dxdot_dx        Value of \f$\dot{x} \cdot dx\f$.
-     * @param dx_dx           Value of \f$ x \cdot dx\f$.
-     * @param local_M_data    Mass matrix of an element, which takes the form of
-     *                        \f$ \int N^T N\mathrm{d}\Omega\f$. Not used.
-     * @param local_K_data    Laplacian matrix of an element, which takes the
-     *         form of \f$ \int (\nabla N)^T K \nabla N\mathrm{d}\Omega\f$.
-     *                        Not used.
-     * @param local_b_data    Right hand side vector of an element.
-     * @param local_Jac_data  Element Jacobian matrix for the Newton-Raphson
-     *                        method.
-     * @param local_coupled_solutions Nodal values of solutions of the coupled
-     *                                processes of an element.
-     */
-    void assembleWithJacobianForDeformationEquations(
-        double const t, double const dt, std::vector<double> const& local_xdot,
-        const double dxdot_dx, const double dx_dx,
-        std::vector<double>& local_M_data, std::vector<double>& local_K_data,
-        std::vector<double>& local_b_data, std::vector<double>& local_Jac_data,
-        LocalCoupledSolutions const& local_coupled_solutions);
+        void initializeConcrete() override
+        {
+            unsigned const n_integration_points =
+                _integration_method.getNumberOfPoints();
 
-    /**
-     * Assemble local matrices and vectors arise from the linearized discretized
-     * weak form of the residual of the mass balance equation of single phase
-     * flow,
-     *      \f[
-     *          \alpha \cdot{p} - \nabla (K (\nabla p + \rho g \nabla z) +
-     *          \alpha_b \nabla \cdot \dot{u}  = Q
-     *      \f]
-     * where \f$ alpha\f$ is a coefficient may depend on storage or the fluid
-     * density change, \f$ \rho\f$ is the fluid density, \f$g\f$ is the
-     * gravitational acceleration, \f$z\f$ is the vertical coordinate, \f$u\f$
-     * is the displacement, and \f$Q\f$ is the source/sink term.
-     *
-     * @param t               Time
-     * @param dt              Time increment
-     * @param local_xdot      Nodal values of \f$\dot{x}\f$ of an element.
-     * @param dxdot_dx        Value of \f$\dot{x} \cdot dx\f$.
-     * @param dx_dx           Value of \f$ x \cdot dx\f$.
-     * @param local_M_data    Mass matrix of an element, which takes the form of
-     *                        \f$ \int N^T N\mathrm{d}\Omega\f$. Not used.
-     * @param local_K_data    Laplacian matrix of an element, which takes the
-     *         form of \f$ \int (\nabla N)^T K \nabla N\mathrm{d}\Omega\f$.
-     *                        Not used.
-     * @param local_b_data    Right hand side vector of an element.
-     * @param local_Jac_data  Element Jacobian matrix for the Newton-Raphson
-     *                        method.
-     * @param local_coupled_solutions Nodal values of solutions of the coupled
-     *                                processes of an element.
-     */
-    void assembleWithJacobianForPressureEquations(
-        double const t, double const dt, std::vector<double> const& local_xdot,
-        const double dxdot_dx, const double dx_dx,
-        std::vector<double>& local_M_data, std::vector<double>& local_K_data,
-        std::vector<double>& local_b_data, std::vector<double>& local_Jac_data,
-        LocalCoupledSolutions const& local_coupled_solutions);
+            for (unsigned ip = 0; ip < n_integration_points; ip++)
+            {
+                _ip_data[ip].pushBackState();
+            }
+        }
 
-private:
-    PhaseFieldAcidProcessData<DisplacementDim>& _process_data;
+        void postTimestepConcrete(std::vector<double> const& /*local_x*/,
+                                  double const /*t*/,
+                                  double const /*dt*/) override
+        {
+            unsigned const n_integration_points =
+                _integration_method.getNumberOfPoints();
 
-    using BMatricesType =
-        BMatrixPolicyType<ShapeFunctionDisplacement, DisplacementDim>;
-    using IpData =
-        IntegrationPointData<BMatricesType, ShapeMatricesTypeDisplacement,
-                             ShapeMatricesTypePressure, DisplacementDim,
-                             ShapeFunctionDisplacement::NPOINTS>;
-    std::vector<IpData, Eigen::aligned_allocator<IpData>> _ip_data;
+            for (unsigned ip = 0; ip < n_integration_points; ip++)
+            {
+                _ip_data[ip].pushBackState();
+            }
+        }
 
-    IntegrationMethod _integration_method;
-    MeshLib::Element const& _element;
-    bool const _is_axially_symmetric;
-    SecondaryData<
-        typename ShapeMatricesTypeDisplacement::ShapeMatrices::ShapeType>
-        _secondary_data;
+        Eigen::Map<const Eigen::RowVectorXd> getShapeMatrix(
+            const unsigned integration_point) const override
+        {
+            auto const& N = _secondary_data.N[integration_point];
 
-    static const int pressure_index = 0;
-    static const int pressure_size = ShapeFunctionPressure::NPOINTS;
-    static const int displacement_index = ShapeFunctionPressure::NPOINTS;
-    static const int displacement_size =
-        ShapeFunctionDisplacement::NPOINTS * DisplacementDim;
-};
+            // assumes N is stored contiguously in memory
+            return Eigen::Map<const Eigen::RowVectorXd>(N.data(), N.size());
+        }
+
+    private:
+        void assembleWithJacobianPhaseFiledEquations(
+            double const t, double const dt,
+            std::vector<double> const& local_xdot, const double dxdot_dx,
+            const double dx_dx, std::vector<double>& local_M_data,
+            std::vector<double>& local_K_data,
+            std::vector<double>& local_b_data,
+            std::vector<double>& local_Jac_data,
+            LocalCoupledSolutions const& local_coupled_solutions);
+
+        void assembleWithJacobianForConcentrationEquations(
+            double const t, double const dt,
+            std::vector<double> const& local_xdot, const double dxdot_dx,
+            const double dx_dx, std::vector<double>& local_M_data,
+            std::vector<double>& local_K_data,
+            std::vector<double>& local_b_data,
+            std::vector<double>& local_Jac_data,
+            LocalCoupledSolutions const& local_coupled_solutions);
+
+        PhaseFieldAcidProcessData& _process_data;
+
+        std::vector<
+            IntegrationPointData<ShapeFunction, ShapeMatricesType, GlobalDim>,
+            Eigen::aligned_allocator<
+                IntegrationPointData<ShapeFunction, ShapeMatricesType, Dim>>>
+            _ip_data;
+
+        IntegrationMethod _integration_method;
+        MeshLib::Element const& _element;
+        SecondaryData<typename ShapeMatrices::ShapeType> _secondary_data;
+        bool const _is_axially_symmetric;
+
+        static const int displacement_index = 0;
+        static const int displacement_size = ShapeFunction::NPOINTS;
+        static const int phasefield_index = ShapeFunction::NPOINTS;
+        static const int phasefield_size = ShapeFunction::NPOINTS;
+    };
 
 }  // namespace PhaseFieldAcid
-}  // namespace ProcessLib
+}  // namespace PhaseFieldAcid
 
 #include "PhaseFieldAcidFEM-impl.h"
