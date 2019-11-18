@@ -14,6 +14,7 @@
 
 #include "MathLib/LinAlg/Eigen/EigenMapTools.h"
 #include "ParameterLib/Utils.h"
+#include "ParameterLib/Parameter.h"
 #include "PhaseFieldAcidProcess.h"
 #include "PhaseFieldAcidProcessData.h"
 #include "ProcessLib/Output/CreateSecondaryVariables.h"
@@ -109,7 +110,7 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
         config.getConfigSubtree("phasefieldacid_parameters");
 
         //Chemical diffusivity
-    auto& chemical_diffusivity = findParameter<double>(
+    auto& chemical_diffusivity = ParameterLib::findParameter<double>(
         phasefield_parameters_config,
         //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters__checmial_diffusivity}
         "chemical_diffusivity", parameters, 1);
@@ -136,7 +137,7 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
     }
 
     PhaseFieldAcidProcessData process_data{materialIDs(mesh),
-                                           specific_body_force};
+                                           specific_body_force,chemical_diffusivity};
 
     SecondaryVariableCollection secondary_variables;
 
