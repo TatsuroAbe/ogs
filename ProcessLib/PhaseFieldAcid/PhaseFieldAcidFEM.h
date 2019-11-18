@@ -154,6 +154,7 @@ private:
                                      std::vector<double>& local_b_data,
                                      LocalCoupledSolutions const& coupled_xs)
     {
+        /*
         auto const& local_ph =
             local_coupled_solutions
                 .local_coupled_xs[_process_data.phasefield_process_id];
@@ -217,6 +218,7 @@ private:
         local_Jac.noalias() = laplace + mass / dt;
 
         local_rhs.noalias() -= laplace * c + mass * c_dot;
+        */
     }
 
     void assembleConcentrationEquations(
@@ -227,6 +229,7 @@ private:
         std::vector<double>& local_b_data,
         LocalCoupledSolutions const& coupled_xs)
     {
+        /*
         auto const& local_ph =
             local_coupled_solutions
                 .local_coupled_xs[_process_data.phasefield_process_id];
@@ -291,6 +294,7 @@ private:
         local_Jac.noalias() = laplace + mass / dt;
 
         local_rhs.noalias() -= laplace * phi + mass * phi_dot;
+        */
     }
 
     PhaseFieldAcidProcessData& _process_data;
