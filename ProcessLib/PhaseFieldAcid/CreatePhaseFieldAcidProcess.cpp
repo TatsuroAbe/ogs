@@ -20,7 +20,7 @@
 
 namespace ProcessLib
 {
-namespace PhaseField
+namespace PhaseFieldAcid
 {
 std::unique_ptr<Process> createPhaseFieldAcidProcess(
     std::string name,
@@ -28,13 +28,13 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
     std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
     std::vector<ProcessVariable> const& variables,
     std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const& parameters,
-    boost::optional<ParameterLib::CoordinateSystem> const&
-        local_coordinate_system,
+    boost::optional<
+        ParameterLib::CoordinateSystem> const& /*local_coordinate_system*/,
     unsigned const integration_order,
     BaseLib::ConfigTree const& config)
 {
     //! \ogs_file_param{prj__processes__process__type}
-    config.checkConfigParameter("type", "PHASEFIELD_Acid");
+    config.checkConfigParameter("type", "PHASEFIELD_ACID");
     DBUG("Create PhaseFieldAcidProcess.");
 
     auto const staggered_scheme =
@@ -48,8 +48,8 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
     //! \ogs_file_param{prj__processes__process__PHASEFIELD_ACID__process_variables}
     auto const pv_config = config.getConfigSubtree("process_variables");
 
-    ProcessVariable* variable_ph;
     ProcessVariable* variable_c;
+    ProcessVariable* variable_ph;
     std::vector<std::vector<std::reference_wrapper<ProcessVariable>>>
         process_variables;
     if (use_monolithic_scheme)  // monolithic scheme.
@@ -82,8 +82,8 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
         OGS_FATAL(
             "Phasefield process variable '%s' is not a scalar variable but has "
             "%d components.",
-            variable_ph->getName().c_str(),
-            variable_ph->getNumberOfComponents());
+            variable_c->getName().c_str(),
+            variable_c->getNumberOfComponents());
     }
 
     DBUG("Associate phase field with process variable '%s'.",
@@ -104,7 +104,7 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
     // Specific body force parameter.
     Eigen::VectorXd specific_body_force;
     std::vector<double> const b =
-        //! \ogs_file_param{prj__processes__process__HT__specific_body_force}
+        //! \ogs_file_param{prj__processes__process__PHASEFIELD_ACID__specific_body_force}
         config.getConfigParameter<std::vector<double>>("specific_body_force");
     assert(!b.empty() && b.size() < 4);
     if (b.size() < mesh.getDimension())
@@ -140,5 +140,5 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
                std::move(named_function_caller), use_monolithic_scheme);
 }
 
-}  // namespace PhaseField
+}  // namespace PhaseFieldAcid
 }  // namespace ProcessLib

@@ -10,23 +10,19 @@
 
 #pragma once
 
-#include <Eigen/Eigen>
-#include <memory>
-#include <utility>
+#include <Eigen/Dense>
+#include <vector>
 
-namespace MaterialLib
-{
-}  // namespace MaterialLib
 namespace ProcessLib
 {
-template <typename T>
-struct Parameter;
-
 namespace PhaseFieldAcid
 {
-struct PhaseFieldAcidProcessData
+/// Used for the extrapolation of the integration point values. It is
+/// ordered (and stored) by integration points.
+template <typename ShapeMatrixType>
+struct SecondaryData
 {
-    Eigen::VectorXd const specific_body_force;
+    std::vector<ShapeMatrixType, Eigen::aligned_allocator<ShapeMatrixType>> N;
 };
 
 }  // namespace PhaseFieldAcid
