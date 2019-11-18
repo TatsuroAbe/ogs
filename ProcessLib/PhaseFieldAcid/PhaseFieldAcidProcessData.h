@@ -30,7 +30,11 @@ struct PhaseFieldAcidProcessData
 
     MeshLib::PropertyVector<int> const* const material_ids = nullptr;
     Eigen::VectorXd const specific_body_force;
+
     ParameterLib::Parameter<double> const& chemical_diffusivity;
+    ParameterLib::Parameter<double> const& alpha;
+    ParameterLib::Parameter<double> const& rrc;
+
     static constexpr int concentration_process_id = 0;
     static constexpr int phasefield_process_id = 1;
 };
