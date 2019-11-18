@@ -27,9 +27,16 @@ namespace PhaseFieldAcid
 {
 struct PhaseFieldAcidProcessData
 {
+    PhaseFieldAcidProcessData(
+        MeshLib::PropertyVector<int> const* const material_ids_,
+        Eigen::VectorXd const& specific_body_force,
+        Parameter<double> const& chemical_diffusivity_;
+                              : specific_body_force(specific_body_force_),
+                                  chemical_diffusivity(chemical_diffusivity_)
+    )
     MeshLib::PropertyVector<int> const* const material_ids = nullptr;
     Eigen::VectorXd const specific_body_force;
-
+    Parameter<double> const& chemical_diffusivity;
     static constexpr int concentration_process_id = 0;
     static constexpr int phasefield_process_id = 1;
 };

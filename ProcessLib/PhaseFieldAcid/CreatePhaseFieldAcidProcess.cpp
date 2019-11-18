@@ -108,6 +108,13 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
         //! \ogs_file_param{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters}
         config.getConfigSubtree("phasefieldacid_parameters");
 
+        //Chemical diffusivity
+    auto& chemical_diffusivity = findParameter<double>(
+        phasefield_parameters_config,
+        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters__checmial_diffusivity}
+        "chemical_diffusivity", parameters, 1);
+    DBUG("Use '%s' as chemical diffusivity.", chemical_diffusivity.name.c_str());
+
     // Specific body force parameter.
     Eigen::VectorXd specific_body_force;
     std::vector<double> const b =
