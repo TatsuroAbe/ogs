@@ -13,8 +13,8 @@
 #include <cassert>
 
 #include "MathLib/LinAlg/Eigen/EigenMapTools.h"
-#include "ParameterLib/Utils.h"
 #include "ParameterLib/Parameter.h"
+#include "ParameterLib/Utils.h"
 #include "PhaseFieldAcidProcess.h"
 #include "PhaseFieldAcidProcessData.h"
 #include "ProcessLib/Output/CreateSecondaryVariables.h"
@@ -109,21 +109,22 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
         //! \ogs_file_param{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters}
         config.getConfigSubtree("phasefieldacid_parameters");
 
-        //Chemical diffusivity
+    // Chemical diffusivity
     auto& chemical_diffusivity = ParameterLib::findParameter<double>(
         phasefield_parameters_config,
         //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters__checmial_diffusivity}
         "chemical_diffusivity", parameters, 1);
-    DBUG("Use '%s' as chemical diffusivity.", chemical_diffusivity.name.c_str());
+    DBUG("Use '%s' as chemical diffusivity.",
+         chemical_diffusivity.name.c_str());
 
-     // alpha
+    // alpha
     auto& alpha = ParameterLib::findParameter<double>(
         phasefield_parameters_config,
         //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters__alpha}
         "alpha", parameters, 1);
     DBUG("Use '%s' as alpha.", alpha.name.c_str());
 
-     // rrc(reaction rate coefficient, k)
+    // rrc(reaction rate coefficient, k)
     auto& rrc = ParameterLib::findParameter<double>(
         phasefield_parameters_config,
         //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters__rrc}
@@ -151,8 +152,8 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
     }
 
     PhaseFieldAcidProcessData process_data{materialIDs(mesh),
-                                           specific_body_force,chemical_diffusivity,alpha,rrc};
-  
+                                           specific_body_force,
+                                           chemical_diffusivity, alpha, rrc};
 
     SecondaryVariableCollection secondary_variables;
 
