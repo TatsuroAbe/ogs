@@ -151,7 +151,8 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
     }
 
     PhaseFieldAcidProcessData process_data{materialIDs(mesh),
-                                           specific_body_force,chemical_diffusivity};
+                                           specific_body_force,chemical_diffusivity,alpha,rrc};
+  
 
     SecondaryVariableCollection secondary_variables;
 
