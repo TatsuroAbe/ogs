@@ -92,11 +92,12 @@ void PhaseFieldAcidProcess::initializeConcreteProcess(
     MeshLib::Mesh const& mesh,
     unsigned const integration_order)
 {
-    /* TODO (naumov)
+    const int process_id = 0;
+    ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
     ProcessLib::createLocalAssemblers<PhaseFieldAcidLocalAssembler>(
-        mesh.getDimension(), mesh.getElements(), dof_table, _local_assemblers,
+        mesh.getDimension(), mesh.getElements(), dof_table,
+        pv.getShapeFunctionOrder(), _local_assemblers,
         mesh.isAxiallySymmetric(), integration_order, _process_data);
-        */
 
     // Initialize local assemblers after all variables have been set.
     GlobalExecutor::executeMemberOnDereferenced(
@@ -125,20 +126,24 @@ void PhaseFieldAcidProcess::assembleConcreteProcess(
 
     std::vector<std::reference_wrapper<NumLib::LocalToGlobalIndexMap>>
         dof_tables;
+    switch (process_id)
+    {
+        case PhaseFieldAcidProcessData::phasefield_process_id:
+        {
+            DBUG(
+                "Assemble the equations of phase-field in "
+                "PhaseFieldAcidProcess for the staggered scheme.");
+            break;
+        }
+        case PhaseFieldAcidProcessData::concentration_process_id:
+        {
+            DBUG(
+                "Assemble the equations of concentration in "
+                "PhaseFieldAcidProcess for the staggered scheme.");
+            break;
+        }
+    }
 
-    // For the staggered scheme
-    if (process_id == 1)
-    {
-        DBUG(
-            "Assemble the equations of concentration in "
-            "PhaseFieldAcidProcess for the staggered scheme.");
-    }
-    else
-    {
-        DBUG(
-            "Assemble the equations of phase-field in "
-            "PhaseFieldAcidProcess for the staggered scheme.");
-    }
     dof_tables.emplace_back(*_local_to_global_index_map_single_component);
     dof_tables.emplace_back(*_local_to_global_index_map_single_component);
 
@@ -183,7 +188,6 @@ void PhaseFieldAcidProcess::assembleWithJacobianConcreteProcess(
         _global_assembler, &VectorMatrixAssembler::assembleWithJacobian,
         _local_assemblers, pv.getActiveElementIDs(), dof_tables, t, dt, x, xdot,
         dxdot_dx, dx_dx, process_id, M, K, b, Jac, _coupled_solutions);
-
 }
 
 void PhaseFieldAcidProcess::preTimestepConcreteProcess(
@@ -228,17 +232,13 @@ void PhaseFieldAcidProcess::postNonLinearSolverConcreteProcess(
     GlobalVector const& x, const double t, double const dt,
     const int process_id)
 {
-
     std::vector<std::reference_wrapper<NumLib::LocalToGlobalIndexMap>>
         dof_tables;
 
     dof_tables.emplace_back(*_local_to_global_index_map_single_component);
     dof_tables.emplace_back(*_local_to_global_index_map_single_component);
 
-
     ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
-
-
 }
 
 constexpr bool PhaseFieldAcidProcess::isPhaseFieldProcess(

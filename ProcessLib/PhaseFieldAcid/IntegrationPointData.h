@@ -9,6 +9,7 @@
  */
 
 #pragma once
+#include <Eigen/Core>
 
 namespace ProcessLib
 {
@@ -17,6 +18,17 @@ namespace PhaseFieldAcid
 template <typename ShapeMatrixType>
 struct IntegrationPointData final
 {
+    IntegrationPointData(
+        typename ShapeMatrixType::NodalRowVectorType const N_,
+        typename ShapeMatrixType::GlobalDimNodalMatrixType const dNdx_,
+        double const integration_weight_)
+        : N(N_),
+          dNdx(dNdx_),
+          integration_weight(integration_weight_),
+          mass_operator{N.transpose() * N * integration_weight}
+    {
+    }
+
     typename ShapeMatrixType::NodalRowVectorType const N;
     typename ShapeMatrixType::GlobalDimNodalMatrixType const dNdx;
     double const integration_weight;
