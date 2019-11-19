@@ -157,7 +157,7 @@ private:
         std::vector<double>& local_M_data,
         std::vector<double>& local_K_data,
         std::vector<double>& local_b_data,
-        LocalCoupledSolutions const& local_couple_solutions)
+        LocalCoupledSolutions const& local_coupled_solutions)
     {
         
         auto const& local_ph =
@@ -175,17 +175,19 @@ private:
         auto c = Eigen::Map<typename ShapeMatricesType::template VectorType<
             concentration_size> const>(local_c.data(), concentration_size);
 
-        auto c_dot = Eigen::Map<typename ShapeMatricesType::template VectorType<
-            concentration_size> const>(local_xdot.data(), concentration_size);
-
-        /*auto local_Jac = MathLib::createZeroedMatrix<
+        auto local_M = MathLib::createZeroedMatrix<
             typename ShapeMatricesType::template MatrixType<
-                concentration_size, concentration_size>>(
-            local_Jac_data, concentration_size, concentration_size);*/
+                phasefield_size, phasefield_size>>(
+            local_M_data, phasefield_size, phasefield_size);
 
-        auto local_rhs = MathLib::createZeroedVector<
+        auto local_K = MathLib::createZeroedMatrix<
+            typename ShapeMatricesType::template MatrixType<
+                phasefield_size, phasefield_size>>(
+            local_K_data, phasefield_size, phasefield_size);
+
+        auto local_b = MathLib::createZeroedVector<
             typename ShapeMatricesType::template VectorType<
-                phasefileld_size>>(local_b_data, phasefield_size);
+                phasefield_size>>(local_b_data, phasefield_size);
 
         typename ShapeMatricesType::NodalMatrixType mass =
             ShapeMatricesType::NodalMatrixType::Zero(phasefield_size,
