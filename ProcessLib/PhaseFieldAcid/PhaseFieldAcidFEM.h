@@ -159,7 +159,6 @@ private:
         std::vector<double>& local_b_data,
         LocalCoupledSolutions const& local_coupled_solutions)
     {
-        
         auto const& local_ph =
             local_coupled_solutions
                 .local_coupled_xs[_process_data.phasefield_process_id];
@@ -176,18 +175,18 @@ private:
             concentration_size> const>(local_c.data(), concentration_size);
 
         auto local_M = MathLib::createZeroedMatrix<
-            typename ShapeMatricesType::template MatrixType<
-                phasefield_size, phasefield_size>>(
+            typename ShapeMatricesType::template MatrixType<phasefield_size,
+                                                            phasefield_size>>(
             local_M_data, phasefield_size, phasefield_size);
 
         auto local_K = MathLib::createZeroedMatrix<
-            typename ShapeMatricesType::template MatrixType<
-                phasefield_size, phasefield_size>>(
+            typename ShapeMatricesType::template MatrixType<phasefield_size,
+                                                            phasefield_size>>(
             local_K_data, phasefield_size, phasefield_size);
 
         auto local_b = MathLib::createZeroedVector<
-            typename ShapeMatricesType::template VectorType<
-                phasefield_size>>(local_b_data, phasefield_size);
+            typename ShapeMatricesType::template VectorType<phasefield_size>>(
+            local_b_data, phasefield_size);
 
         typename ShapeMatricesType::NodalMatrixType mass =
             ShapeMatricesType::NodalMatrixType::Zero(phasefield_size,
@@ -204,7 +203,7 @@ private:
             _integration_method.getNumberOfPoints();
 
         double const tau = _process_data.tau(t, x_position)[0];
-
+        double const epsilon = _process_data.epsilon(t, x_position)[0];
         for (int ip = 0; ip < n_integration_points; ip++)
         {
             x_position.setIntegrationPoint(ip);
@@ -218,15 +217,13 @@ private:
                     _element, N);
 
             auto const& b = _process_data.specific_body_force;
+            local_M.noalias() += w * N.transpose() * N;
 
+            local_K.noalias() +=
+                epsilon * epsilon / tau * dNdx.transpose() * dNdx * w;
+
+            local_b.noalias() += 0.0 * w * dNdx.transpose() * b;
         }
-
-        local_M.noalias() += w * N.transpose() * N;
-
-        local_K.noalias() += epsi * epsi / tau * dNdx.transpose() * dNdx * w;
-
-        local_b.noalias() += 0.0 * w * dNdx.transpose() * b;
-
     }
 
     void assembleConcentrationEquations(

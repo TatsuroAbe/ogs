@@ -36,7 +36,7 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
     BaseLib::ConfigTree const& config)
 {
     //! \ogs_file_param{prj__processes__process__type}
-    config.checkConfigParameter("type", "PHASEFIELD_ACID");
+    config.checkConfigParameter("type", "PHASEFIELDACID");
     DBUG("Create PhaseFieldAcidProcess.");
 
     auto const staggered_scheme =
@@ -105,43 +105,43 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
             variable_ph->getNumberOfComponents());
     }
 
-    auto const phasefield_parameters_config =
-        //! \ogs_file_param{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters}
+    auto const phasefieldacid_parameters_config =
+        //! \ogs_file_param{prj__processes__process__PHASEFIELD_ACID__phasefieldacid_parameters}
         config.getConfigSubtree("phasefieldacid_parameters");
 
     // Chemical diffusivity
     auto& chemical_diffusivity = ParameterLib::findParameter<double>(
-        phasefield_parameters_config,
-        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters__checmial_diffusivity}
+        phasefieldacid_parameters_config,
+        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefieldacid_parameters__checmial_diffusivity}
         "chemical_diffusivity", parameters, 1);
     DBUG("Use '%s' as chemical diffusivity.",
          chemical_diffusivity.name.c_str());
 
     // alpha
     auto& alpha = ParameterLib::findParameter<double>(
-        phasefield_parameters_config,
-        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters__alpha}
+        phasefieldacid_parameters_config,
+        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefieldacid_parameters__alpha}
         "alpha", parameters, 1);
     DBUG("Use '%s' as alpha.", alpha.name.c_str());
 
     // rrc(reaction rate coefficient, k)
     auto& rrc = ParameterLib::findParameter<double>(
-        phasefield_parameters_config,
-        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters__rrc}
+        phasefieldacid_parameters_config,
+        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefieldacid_parameters__rrc}
         "rrc", parameters, 1);
     DBUG("Use '%s' as rrc.", rrc.name.c_str());
 
-    // epsi
-    auto& epsi = ParameterLib::findParameter<double>(
-        phasefield_parameters_config,
-        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters__epsi}
-        "epsi", parameters, 1);
-    DBUG("Use '%s' as epsi.", epsi.name.c_str());
+    // epsilon
+    auto& epsilon = ParameterLib::findParameter<double>(
+        phasefieldacid_parameters_config,
+        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefieldacid_parameters__epsilon}
+        "epsilon", parameters, 1);
+    DBUG("Use '%s' as epsi.", epsilon.name.c_str());
 
     // tau
     auto& tau = ParameterLib::findParameter<double>(
-        phasefield_parameters_config,
-        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters__tau}
+        phasefieldacid_parameters_config,
+        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefieldacid_parameters__tau}
         "tau", parameters, 1);
     DBUG("Use '%s' as tau.", tau.name.c_str());
 
@@ -166,7 +166,7 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
     }
 
     PhaseFieldAcidProcessData process_data{materialIDs(mesh),
-                 specific_body_force,chemical_diffusivity, alpha, rrc, epsi, tau};
+                 specific_body_force,chemical_diffusivity, alpha, rrc, epsilon, tau};
 
     SecondaryVariableCollection secondary_variables;
 

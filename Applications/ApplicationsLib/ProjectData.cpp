@@ -14,9 +14,8 @@
 #include "ProjectData.h"
 
 #include <algorithm>
-#include <set>
-
 #include <logog/include/logog.hpp>
+#include <set>
 
 #ifdef OGS_USE_PYTHON
 #include <pybind11/eval.h>
@@ -25,7 +24,6 @@
 #include "BaseLib/Algorithm.h"
 #include "BaseLib/ConfigTree.h"
 #include "BaseLib/FileTools.h"
-
 #include "GeoLib/GEOObjects.h"
 #include "MaterialLib/MPL/CreateMedium.h"
 #include "MathLib/Curve/CreatePiecewiseLinearCurve.h"
@@ -33,7 +31,6 @@
 #include "MeshGeoToolsLib/CreateSearchLength.h"
 #include "MeshGeoToolsLib/SearchLength.h"
 #include "MeshLib/Mesh.h"
-
 #include "NumLib/ODESolver/ConvergenceCriterion.h"
 #include "ProcessLib/CreateJacobianAssembler.h"
 #include "ProcessLib/DeactivatedSubdomain.h"
@@ -41,7 +38,6 @@
 // FileIO
 #include "GeoLib/IO/XmlIO/Boost/BoostXmlGmlInterface.h"
 #include "MeshLib/IO/readMeshFromFile.h"
-
 #include "ParameterLib/ConstantParameter.h"
 #include "ParameterLib/Utils.h"
 #include "ProcessLib/CreateTimeLoop.h"
@@ -78,6 +74,9 @@
 #endif
 #ifdef OGS_BUILD_PROCESS_PHASEFIELD
 #include "ProcessLib/PhaseField/CreatePhaseFieldProcess.h"
+#endif
+#ifdef OGS_BUILD_PROCESS_PHASEFIELDACID
+#include "ProcessLib/PhaseFieldAcid/CreatePhaseFieldAcidProcess.h"
 #endif
 #ifdef OGS_BUILD_PROCESS_RICHARDSCOMPONENTTRANSPORT
 #include "ProcessLib/RichardsComponentTransport/CreateRichardsComponentTransportProcess.h"
@@ -428,7 +427,7 @@ std::vector<std::string> ProjectData::parseParameters(
 }
 
 void ProjectData::parseMedia(
-        boost::optional<BaseLib::ConfigTree> const& media_config)
+    boost::optional<BaseLib::ConfigTree> const& media_config)
 {
     if (!media_config)
     {
@@ -666,6 +665,16 @@ void ProjectData::parseProcesses(BaseLib::ConfigTree const& processes_config,
                             process_config);
                     break;
             }
+        }
+        else
+#endif
+#ifdef OGS_BUILD_PROCESS_PHASEFIELDACID
+            if (type == "PHASEFIELDACID")
+        {
+            process = ProcessLib::PhaseFieldAcid::createPhaseFieldAcidProcess(
+                name, *_mesh_vec[0], std::move(jacobian_assembler),
+               _process_variables, _parameters,_local_coordinate_system,
+                integration_order,  process_config);
         }
         else
 #endif
