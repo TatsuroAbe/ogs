@@ -34,6 +34,8 @@ struct PhaseFieldAcidProcessData
     ParameterLib::Parameter<double> const& chemical_diffusivity;
     ParameterLib::Parameter<double> const& alpha;
     ParameterLib::Parameter<double> const& rrc;
+    ParameterLib::Parameter<double> const& epsi;
+    ParameterLib::Parameter<double> const& tau;
 
     static constexpr int concentration_process_id = 0;
     static constexpr int phasefield_process_id = 1;

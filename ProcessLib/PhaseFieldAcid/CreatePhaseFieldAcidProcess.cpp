@@ -131,6 +131,20 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
         "rrc", parameters, 1);
     DBUG("Use '%s' as rrc.", rrc.name.c_str());
 
+    // epsi
+    auto& epsi = ParameterLib::findParameter<double>(
+        phasefield_parameters_config,
+        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters__epsi}
+        "epsi", parameters, 1);
+    DBUG("Use '%s' as epsi.", epsi.name.c_str());
+
+    // tau
+    auto& tau = ParameterLib::findParameter<double>(
+        phasefield_parameters_config,
+        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefield_parameters__tau}
+        "tau", parameters, 1);
+    DBUG("Use '%s' as tau.", tau.name.c_str());
+
     // Specific body force parameter.
     Eigen::VectorXd specific_body_force;
     std::vector<double> const b =
@@ -152,8 +166,7 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
     }
 
     PhaseFieldAcidProcessData process_data{materialIDs(mesh),
-                                           specific_body_force,
-                                           chemical_diffusivity, alpha, rrc};
+                 specific_body_force,chemical_diffusivity, alpha, rrc, epsi, tau};
 
     SecondaryVariableCollection secondary_variables;
 

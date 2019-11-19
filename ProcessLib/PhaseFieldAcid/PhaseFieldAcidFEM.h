@@ -159,7 +159,7 @@ private:
         std::vector<double>& local_b_data,
         LocalCoupledSolutions const& local_couple_solutions)
     {
-        /*
+        
         auto const& local_ph =
             local_coupled_solutions
                 .local_coupled_xs[_process_data.phasefield_process_id];
@@ -178,28 +178,30 @@ private:
         auto c_dot = Eigen::Map<typename ShapeMatricesType::template VectorType<
             concentration_size> const>(local_xdot.data(), concentration_size);
 
-        auto local_Jac = MathLib::createZeroedMatrix<
+        /*auto local_Jac = MathLib::createZeroedMatrix<
             typename ShapeMatricesType::template MatrixType<
                 concentration_size, concentration_size>>(
-            local_Jac_data, concentration_size, concentration_size);
+            local_Jac_data, concentration_size, concentration_size);*/
 
         auto local_rhs = MathLib::createZeroedVector<
             typename ShapeMatricesType::template VectorType<
-                concentration_size>>(local_b_data, concentration_size);
+                phasefileld_size>>(local_b_data, phasefield_size);
 
         typename ShapeMatricesType::NodalMatrixType mass =
-            ShapeMatricesType::NodalMatrixType::Zero(concentration_size,
-                                                     concentration_size);
+            ShapeMatricesType::NodalMatrixType::Zero(phasefield_size,
+                                                     phasefield_size);
 
         typename ShapeMatricesType::NodalMatrixType laplace =
-            ShapeMatricesType::NodalMatrixType::Zero(concentration_size,
-                                                     concentration_size);
+            ShapeMatricesType::NodalMatrixType::Zero(phasefield_size,
+                                                     phasefield_size);
 
         ParameterLib::SpatialPosition x_position;
         x_position.setElementID(_element.getID());
 
         int const n_integration_points =
             _integration_method.getNumberOfPoints();
+
+        double const tau = _process_data.tau(t, x_position)[0];
 
         for (int ip = 0; ip < n_integration_points; ip++)
         {
@@ -215,15 +217,14 @@ private:
 
             auto const& b = _process_data.specific_body_force;
 
-            local_rhs.noalias() += (1.0) * N * w;
-            mass.noalias() += (1.0) * N.transpose() * N * w;
-
-            laplace.noalias() += (dNdx.transpose() * dNdx) * w;
         }
-        local_Jac.noalias() = laplace + mass / dt;
 
-        local_rhs.noalias() -= laplace * c + mass * c_dot;
-        */
+        local_M.noalias() += w * N.transpose() * N;
+
+        local_K.noalias() += epsi * epsi / tau * dNdx.transpose() * dNdx * w;
+
+        local_b.noalias() += 0.0 * w * dNdx.transpose() * b;
+
     }
 
     void assembleConcentrationEquations(
@@ -266,6 +267,8 @@ private:
             _integration_method.getNumberOfPoints();
 
         double const D = _process_data.chemical_diffusivity(t, x_position)[0];
+        double const alpha = _process_data.alpha(t, x_position)[0];
+        double const rrc = _process_data.rrc(t, x_position)[0];
 
         for (int ip = 0; ip < n_integration_points; ip++)
         {
