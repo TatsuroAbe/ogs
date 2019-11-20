@@ -179,6 +179,12 @@ private:
             &local_coupled_solutions.local_coupled_xs0[concentration_index],
             concentration_size);
 
+        auto ph = Eigen::Map<typename ShapeMatricesType::template VectorType<
+            phasefield_size> const>(local_ph.data(), phasefield_size);
+
+        auto c = Eigen::Map<typename ShapeMatricesType::template VectorType<
+            concentration_size> const>(local_c.data(), concentration_size);
+
         auto local_M = MathLib::createZeroedMatrix<LocalBlockMatrixType>(
             local_M_data, phasefield_size, phasefield_size);
         auto local_K = MathLib::createZeroedMatrix<LocalBlockMatrixType>(
@@ -214,8 +220,12 @@ private:
         int const n_integration_points =
             _integration_method.getNumberOfPoints();
 
+        double const D = _process_data.chemical_diffusivity(t, x_position)[0];
         double const tau = _process_data.tau(t, x_position)[0];
         double const epsilon = _process_data.epsilon(t, x_position)[0];
+        double const alpha = _process_data.alpha(t, x_position)[0];
+        double const rrc = _process_data.rrc(t, x_position)[0];
+
         auto const& b = _process_data.specific_body_force;
         for (int ip = 0; ip < n_integration_points; ip++)
         {
@@ -230,6 +240,12 @@ private:
             NumLib::shapeFunctionInterpolate(local_c, N, c_ip);
             NumLib::shapeFunctionInterpolate(local_ph, N, ph_ip);
 
+            double grad_ph_norm = (dNdx * ph).normalized();
+            double kappa = dNdx.dot(grad_ph_norm);
+            double da = rrc * epsilon / D;
+            double lambda = tau * D / epsilon / epsilon /
+                            (alpha * (5.0 / 3.0 + sqrt(2) / da));
+
             auto const x_coord =
                 interpolateXCoordinate<ShapeFunction, ShapeMatricesType>(
                     _element, N);
@@ -239,7 +255,10 @@ private:
             local_K.noalias() +=
                 epsilon * epsilon / tau * dNdx.transpose() * dNdx * w;
 
-            local_b.noalias() += 0.0 * w * dNdx.transpose() * b;
+            local_b.noalias() +=
+                ((1 - ph_ip * ph_ip) * (ph_ip - lambda * c_ip) -
+                 epsilon * epsilon * kappa * grad_ph_norm) *
+                N * w;
         }
     }
 
