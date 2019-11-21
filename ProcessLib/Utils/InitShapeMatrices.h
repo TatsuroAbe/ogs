@@ -12,8 +12,8 @@
 #include <vector>
 
 #include "MeshLib/Elements/Element.h"
+#include "NumLib/Fem/CoordinatesMapping/NaturalNodeCoordinates.h"
 #include "NumLib/Fem/FiniteElement/TemplateIsoparametric.h"
-
 
 namespace ProcessLib
 {
@@ -33,15 +33,49 @@ initShapeMatrices(MeshLib::Element const& e, bool is_axially_symmetric,
         NumLib::createIsoparametricFiniteElement<ShapeFunction,
                                                  ShapeMatricesType>(e);
 
-    unsigned const n_integration_points = integration_method.getNumberOfPoints();
+    unsigned const n_integration_points =
+        integration_method.getNumberOfPoints();
 
     shape_matrices.reserve(n_integration_points);
-    for (unsigned ip = 0; ip < n_integration_points; ++ip) {
+    for (unsigned ip = 0; ip < n_integration_points; ++ip)
+    {
         shape_matrices.emplace_back(ShapeFunction::DIM, GlobalDim,
-                                     ShapeFunction::NPOINTS);
+                                    ShapeFunction::NPOINTS);
         fe.computeShapeFunctions(
-                integration_method.getWeightedPoint(ip).getCoords(),
-                shape_matrices[ip], GlobalDim, is_axially_symmetric);
+            integration_method.getWeightedPoint(ip).getCoords(),
+            shape_matrices[ip], GlobalDim, is_axially_symmetric);
+    }
+
+    return shape_matrices;
+}
+
+template <typename ShapeFunction, typename ShapeMatricesType,
+          unsigned GlobalDim>
+std::vector<typename ShapeMatricesType::ShapeMatrices,
+            Eigen::aligned_allocator<typename ShapeMatricesType::ShapeMatrices>>
+initShapeMatricesInNodes(MeshLib::Element const& e, bool is_axially_symmetric)
+{
+    std::vector<
+        typename ShapeMatricesType::ShapeMatrices,
+        Eigen::aligned_allocator<typename ShapeMatricesType::ShapeMatrices>>
+        shape_matrices;
+
+    auto const fe =
+        NumLib::createIsoparametricFiniteElement<ShapeFunction,
+                                                 ShapeMatricesType>(e);
+
+    unsigned const n_nodes = e.getNumberOfNodes();
+
+    shape_matrices.reserve(n_nodes);
+
+    for (unsigned i = 0; i < n_nodes; ++i)
+    {
+        shape_matrices.emplace_back(ShapeFunction::DIM, GlobalDim,
+                                    ShapeFunction::NPOINTS);
+        fe.computeShapeFunctions(
+            NumLib::NaturalCoordinates<
+                typename ShapeFunction::MeshElement>::coordinates[i].data(),
+            shape_matrices[i], GlobalDim, is_axially_symmetric);
     }
 
     return shape_matrices;

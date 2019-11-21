@@ -7,7 +7,7 @@
  *              http://www.opengeosys.org/project/license
  *
  */
-
+#pragma once
 #include <cassert>
 
 #include "BaseLib/Error.h"
@@ -58,6 +58,13 @@ namespace NumLib
 /// MeshLib::Element.
 template <typename MeshLibElement>
 struct NaturalCoordinates;
+
+template <>
+struct NaturalCoordinates<MeshLib::Point>
+{
+    static constexpr std::array<std::array<double, 3>, 1> coordinates = {
+        {{{0, 0, 0}}}};
+};
 
 template <>
 struct NaturalCoordinates<MeshLib::Line>
