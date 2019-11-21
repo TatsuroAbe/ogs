@@ -280,6 +280,10 @@ private:
         auto local_ph0 = Eigen::Map<const NodalVectorType>(
             &local_coupled_solutions.local_coupled_xs0[phasefield_index],
             phasefield_size);
+        auto ph = Eigen::Map<typename ShapeMatricesType::template VectorType<
+            phasefield_size> const>(local_ph.data(), phasefield_size);
+
+
 
         auto local_M = MathLib::createZeroedMatrix<LocalBlockMatrixType>(
             local_M_data, concentration_size, concentration_size);
@@ -321,6 +325,9 @@ private:
 
             double c_ip = 0.0;
             double ph_ip = 0.0;
+            double ph_dot = (local_coupled_xs - local_coupled_xs0) / dt;
+            double ddph = 1.0;
+            double grad_ph_norm = (dNdx * ph).normalized();
 
             NumLib::shapeFunctionInterpolate(local_c, N, c_ip);
             NumLib::shapeFunctionInterpolate(local_ph, N, ph_ip);
@@ -335,7 +342,8 @@ private:
 
             local_K.noalias() += D * dNdx.transpose() * dNdx * w;
 
-            local_b.noalias() += 0.0 * w * dNdx.transpose() * b;
+            local_b.noalias() += 0.0 * w * dNdx.transpose() *
+                alpha * ph_dot * (1.0 + (D * ddph + ph_dot) / rrc / grad_ph_norm);
         }
     }
 
