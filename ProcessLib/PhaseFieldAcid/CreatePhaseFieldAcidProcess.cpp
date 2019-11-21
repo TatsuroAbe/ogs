@@ -50,6 +50,8 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
     //! \ogs_file_param{prj__processes__process__PHASEFIELD_ACID__process_variables}
     auto const pv_config = config.getConfigSubtree("process_variables");
 
+    const int _concentration_process_id = 0;
+    const int _phasefield_process_id = 1;
     ProcessVariable* variable_c;
     ProcessVariable* variable_ph;
     std::vector<std::vector<std::reference_wrapper<ProcessVariable>>>
@@ -72,15 +74,11 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
                 findProcessVariables(variables, pv_config, {variable_name});
             process_variables.push_back(std::move(per_process_variables));
         }
-        variable_c =
-            &process_variables
-                 [PhaseFieldAcidProcessData::concentration_process_id][0]
-                     .get();
-        variable_ph =
-            &process_variables[PhaseFieldAcidProcessData::phasefield_process_id]
-                              [0]
-                                  .get();
+
+        variable_c = &process_variables[_concentration_process_id][0].get();
+        variable_ph = &process_variables[_phasefield_process_id][0].get();
     }
+
 
     DBUG("Associate concentration with process variable '%s'.",
          variable_c->getName().c_str());
@@ -176,7 +174,7 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
         std::move(name), mesh, std::move(jacobian_assembler), parameters,
         integration_order, std::move(process_variables),
         std::move(process_data), std::move(secondary_variables),
-        use_monolithic_scheme);
+        use_monolithic_scheme,_concentration_process_id,_phasefield_process_id);
 }
 
 }  // namespace PhaseFieldAcid

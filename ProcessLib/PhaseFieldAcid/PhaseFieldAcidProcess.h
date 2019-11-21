@@ -22,8 +22,7 @@ class PhaseFieldAcidProcess final : public Process
 {
 public:
     PhaseFieldAcidProcess(
-        std::string name,
-        MeshLib::Mesh& mesh,
+        std::string name, MeshLib::Mesh& mesh,
         std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&&
             jacobian_assembler,
         std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const&
@@ -33,7 +32,8 @@ public:
             process_variables,
         PhaseFieldAcidProcessData&& process_data,
         SecondaryVariableCollection&& secondary_variables,
-        bool const use_monolithic_scheme);
+        bool const use_monolithic_scheme, const int concentration_process_id,
+        const int phasefield_process_id);
 
     //! \name ODESystem interface
     //! @{
@@ -73,6 +73,13 @@ private:
                                     double const t, double const dt,
                                     const int process_id) override;
 
+    void setCoupledSolutionsOfPreviousTimeStepPerProcess(const int process_id);
+
+    /// Set the solutions of the previous time step to the coupled term.
+    /// It is only for the staggered scheme, and it must be called within
+    /// the coupling loop because that the coupling term is only created there.
+    void setCoupledSolutionsOfPreviousTimeStep();
+
     void postTimestepConcreteProcess(std::vector<GlobalVector*> const& x,
                                      const double t, const double delta_t,
                                      int const process_id) override;
@@ -97,6 +104,11 @@ private:
     /// mechanical process. In the present implementation, the mechanical
     /// process has process_id == 0 in the staggered scheme.
     constexpr bool isPhaseFieldProcess(int const process_id) const;
+
+    /// Solutions of the previous time step
+    std::array<std::unique_ptr<GlobalVector>, 2> _xs_previous_timestep;
+    const int _concentration_process_id;
+    const int _phasefield_process_id;
 };
 
 }  // namespace PhaseFieldAcid

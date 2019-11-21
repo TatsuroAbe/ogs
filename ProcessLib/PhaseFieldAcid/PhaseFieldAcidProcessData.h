@@ -37,8 +37,6 @@ struct PhaseFieldAcidProcessData
     ParameterLib::Parameter<double> const& epsilon;
     ParameterLib::Parameter<double> const& tau;
 
-    static constexpr int concentration_process_id = 0;
-    static constexpr int phasefield_process_id = 1;
 };
 
 }  // namespace PhaseFieldAcid

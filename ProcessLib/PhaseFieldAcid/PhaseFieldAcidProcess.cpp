@@ -22,8 +22,7 @@ namespace ProcessLib
 namespace PhaseFieldAcid
 {
 PhaseFieldAcidProcess::PhaseFieldAcidProcess(
-    std::string name,
-    MeshLib::Mesh& mesh,
+    std::string name, MeshLib::Mesh& mesh,
     std::unique_ptr<ProcessLib::AbstractJacobianAssembler>&& jacobian_assembler,
     std::vector<std::unique_ptr<ParameterLib::ParameterBase>> const& parameters,
     unsigned const integration_order,
@@ -31,11 +30,14 @@ PhaseFieldAcidProcess::PhaseFieldAcidProcess(
         process_variables,
     PhaseFieldAcidProcessData&& process_data,
     SecondaryVariableCollection&& secondary_variables,
-    bool const use_monolithic_scheme)
+    bool const use_monolithic_scheme, const int concentration_process_id,
+    const int phasefield_process_id)
     : Process(std::move(name), mesh, std::move(jacobian_assembler), parameters,
               integration_order, std::move(process_variables),
               std::move(secondary_variables), use_monolithic_scheme),
-      _process_data(std::move(process_data))
+      _process_data(std::move(process_data)),
+      _concentration_process_id(concentration_process_id),
+      _phasefield_process_id(phasefield_process_id)
 {
     if (use_monolithic_scheme)
     {
@@ -66,7 +68,6 @@ NumLib::LocalToGlobalIndexMap const& PhaseFieldAcidProcess::getDOFTable(
 
 void PhaseFieldAcidProcess::constructDofTable()
 {
-    // For displacement equation.
     const int concentration_process_id = 0;
     constructDofTableOfSpecifiedProsessStaggerdScheme(concentration_process_id);
 
@@ -97,7 +98,8 @@ void PhaseFieldAcidProcess::initializeConcreteProcess(
     ProcessLib::createLocalAssemblers<PhaseFieldAcidLocalAssembler>(
         mesh.getDimension(), mesh.getElements(), dof_table,
         pv.getShapeFunctionOrder(), _local_assemblers,
-        mesh.isAxiallySymmetric(), integration_order, _process_data);
+        mesh.isAxiallySymmetric(), integration_order, _process_data,
+        _concentration_process_id, _phasefield_process_id);
 
     // Initialize local assemblers after all variables have been set.
     GlobalExecutor::executeMemberOnDereferenced(
@@ -128,14 +130,14 @@ void PhaseFieldAcidProcess::assembleConcreteProcess(
         dof_tables;
     switch (process_id)
     {
-        case PhaseFieldAcidProcessData::phasefield_process_id:
+        case 1:
         {
             DBUG(
                 "Assemble the equations of phase-field in "
                 "PhaseFieldAcidProcess for the staggered scheme.");
             break;
         }
-        case PhaseFieldAcidProcessData::concentration_process_id:
+        case 0:
         {
             DBUG(
                 "Assemble the equations of concentration in "
@@ -144,6 +146,7 @@ void PhaseFieldAcidProcess::assembleConcreteProcess(
         }
     }
 
+    setCoupledSolutionsOfPreviousTimeStep();
     dof_tables.emplace_back(*_local_to_global_index_map_single_component);
     dof_tables.emplace_back(*_local_to_global_index_map_single_component);
 
@@ -200,7 +203,27 @@ void PhaseFieldAcidProcess::preTimestepConcreteProcess(
     _x_previous_timestep =
         MathLib::MatrixVectorTraits<GlobalVector>::newInstance(x);
         */
+    assert(process_id < 2);
 
+    if (_use_monolithic_scheme)
+    {
+        return;
+    }
+
+    if (!_xs_previous_timestep[process_id])
+    {
+        _xs_previous_timestep[process_id] =
+            MathLib::MatrixVectorTraits<GlobalVector>::newInstance(
+                *x[process_id]);
+    }
+    else
+    {
+        auto& x0 = *_xs_previous_timestep[process_id];
+        MathLib::LinAlg::copy(*x[process_id], x0);
+    }
+
+    auto& x0 = *_xs_previous_timestep[process_id];
+    MathLib::LinAlg::setLocalAccessibleVector(x0);
     ProcessLib::ProcessVariable const& pv = getProcessVariables(process_id)[0];
 
     GlobalExecutor::executeSelectedMemberOnDereferenced(
@@ -228,6 +251,29 @@ void PhaseFieldAcidProcess::postTimestepConcreteProcess(
     }
 }
 
+void PhaseFieldAcidProcess::setCoupledSolutionsOfPreviousTimeStepPerProcess(
+    const int process_id)
+{
+    const auto& x_t0 = _xs_previous_timestep[process_id];
+    if (x_t0 == nullptr)
+    {
+        OGS_FATAL(
+            "Memory is not allocated for the global vector of the solution of "
+            "the previous time step for the staggered scheme.\n It can be done "
+            "by overriding Process::preTimestepConcreteProcess (ref. "
+            "HTProcess::preTimestepConcreteProcess) ");
+    }
+
+    _coupled_solutions->coupled_xs_t0[process_id] = x_t0.get();
+}
+
+void PhaseFieldAcidProcess::setCoupledSolutionsOfPreviousTimeStep()
+{
+    _coupled_solutions->coupled_xs_t0.resize(2);
+    setCoupledSolutionsOfPreviousTimeStepPerProcess(_concentration_process_id);
+    setCoupledSolutionsOfPreviousTimeStepPerProcess(_phasefield_process_id);
+}
+
 void PhaseFieldAcidProcess::postNonLinearSolverConcreteProcess(
     GlobalVector const& x, const double t, double const dt,
     const int process_id)
@@ -244,7 +290,7 @@ void PhaseFieldAcidProcess::postNonLinearSolverConcreteProcess(
 constexpr bool PhaseFieldAcidProcess::isPhaseFieldProcess(
     int const process_id) const
 {
-    return process_id == PhaseFieldAcidProcessData::phasefield_process_id;
+    return process_id == _phasefield_process_id;
 }
 
 }  // namespace PhaseFieldAcid

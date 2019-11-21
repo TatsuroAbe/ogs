@@ -45,6 +45,11 @@ class PhaseFieldAcidLocalAssembler
 
     using NodalVectorType = typename ShapeMatricesType::NodalVectorType;
 
+    using GlobalDimVectorType = typename ShapeMatricesType::GlobalDimVectorType;
+
+    using GlobalDimNodalMatrixType =
+        typename ShapeMatricesType::GlobalDimNodalMatrixType;
+
     using LocalBlockMatrixType =
         typename ShapeMatricesType::template MatrixType<phasefield_size,
                                                         phasefield_size>;
@@ -59,11 +64,15 @@ public:
                                  std::size_t const /*local_matrix_size*/,
                                  bool const is_axially_symmetric,
                                  unsigned const integration_order,
-                                 PhaseFieldAcidProcessData& process_data)
+                                 PhaseFieldAcidProcessData& process_data,
+                                 const int concentration_process_id,
+                                 const int phasefield_process_id)
         : _process_data(process_data),
           _integration_method(integration_order),
           _element(e),
-          _is_axially_symmetric(is_axially_symmetric)
+          _is_axially_symmetric(is_axially_symmetric),
+          _concentration_process_id(concentration_process_id),
+          _phasefield_process_id(phasefield_process_id)
     {
         unsigned const n_integration_points =
             _integration_method.getNumberOfPoints();
@@ -75,6 +84,9 @@ public:
             initShapeMatrices<ShapeFunction, ShapeMatricesType,
                               IntegrationMethod, GlobalDim>(
                 e, is_axially_symmetric, _integration_method);
+        _shape_matrices_nodes =
+            initShapeMatricesInNodes<ShapeFunction, ShapeMatricesType,
+                                     GlobalDim>(e, is_axially_symmetric);
 
         ParameterLib::SpatialPosition x_position;
         x_position.setElementID(_element.getID());
@@ -109,13 +121,13 @@ public:
     {
         switch (process_id)
         {
-            case PhaseFieldAcidProcessData::phasefield_process_id:
+            case 1:
             {
                 assemblePhaseFiledEquations(t, dt, local_M_data, local_K_data,
                                             local_b_data, coupled_xs);
                 break;
             }
-            case PhaseFieldAcidProcessData::concentration_process_id:
+            case 0:
             {
                 // For the equations with concentration
                 assembleConcentrationEquations(t, dt, local_M_data,
@@ -162,28 +174,22 @@ public:
 private:
     void assemblePhaseFiledEquations(
         double const t,
-        double const dt,
+        double const /*dt*/,
         std::vector<double>& local_M_data,
         std::vector<double>& local_K_data,
         std::vector<double>& local_b_data,
         LocalCoupledSolutions const& local_coupled_solutions)
     {
-        auto local_ph = Eigen::Map<const NodalVectorType>(
+        auto ph = Eigen::Map<const NodalVectorType>(
             &local_coupled_solutions.local_coupled_xs[phasefield_index],
             phasefield_size);
 
-        auto local_c = Eigen::Map<const NodalVectorType>(
+        auto c = Eigen::Map<const NodalVectorType>(
             &local_coupled_solutions.local_coupled_xs[concentration_index],
             concentration_size);
-        auto local_c0 = Eigen::Map<const NodalVectorType>(
+        auto c0 = Eigen::Map<const NodalVectorType>(
             &local_coupled_solutions.local_coupled_xs0[concentration_index],
             concentration_size);
-
-        auto ph = Eigen::Map<typename ShapeMatricesType::template VectorType<
-            phasefield_size> const>(local_ph.data(), phasefield_size);
-
-        auto c = Eigen::Map<typename ShapeMatricesType::template VectorType<
-            concentration_size> const>(local_c.data(), concentration_size);
 
         auto local_M = MathLib::createZeroedMatrix<LocalBlockMatrixType>(
             local_M_data, phasefield_size, phasefield_size);
@@ -192,20 +198,6 @@ private:
         auto local_b = MathLib::createZeroedVector<LocalSegmentVectorType>(
             local_b_data, phasefield_size);
 
-        /*        auto local_M = MathLib::createZeroedMatrix<
-                    typename ShapeMatricesType::template
-           MatrixType<phasefield_size, phasefield_size>>( local_M_data,
-           phasefield_size, phasefield_size);
-
-                auto local_K = MathLib::createZeroedMatrix<
-                    typename ShapeMatricesType::template
-           MatrixType<phasefield_size, phasefield_size>>( local_K_data,
-           phasefield_size, phasefield_size);
-
-                auto local_b = MathLib::createZeroedVector<
-                    typename ShapeMatricesType::template
-           VectorType<phasefield_size>>( local_b_data, phasefield_size);
-        */
         typename ShapeMatricesType::NodalMatrixType mass =
             ShapeMatricesType::NodalMatrixType::Zero(phasefield_size,
                                                      phasefield_size);
@@ -213,6 +205,11 @@ private:
         typename ShapeMatricesType::NodalMatrixType laplace =
             ShapeMatricesType::NodalMatrixType::Zero(phasefield_size,
                                                      phasefield_size);
+
+        GlobalDimNodalMatrixType f = GlobalDimNodalMatrixType::Zero(GlobalDim,phasefield_size);
+
+        for (int i = 0; i < _element.getNumberOfNodes(); i++)
+            f.col(i) = (_shape_matrices_nodes[i].dNdx * ph).normalized();
 
         ParameterLib::SpatialPosition x_position;
         x_position.setElementID(_element.getID());
@@ -226,7 +223,6 @@ private:
         double const alpha = _process_data.alpha(t, x_position)[0];
         double const rrc = _process_data.rrc(t, x_position)[0];
 
-        auto const& b = _process_data.specific_body_force;
         for (int ip = 0; ip < n_integration_points; ip++)
         {
             x_position.setIntegrationPoint(ip);
@@ -234,21 +230,19 @@ private:
             auto const& N = _ip_data[ip].N;
             auto const& dNdx = _ip_data[ip].dNdx;
 
-            double c_ip = 0.0;
-            double ph_ip = 0.0;
+            double c_ip = N.dot(c);
+            double ph_ip = N.dot(ph);
 
-            NumLib::shapeFunctionInterpolate(local_c, N, c_ip);
-            NumLib::shapeFunctionInterpolate(local_ph, N, ph_ip);
+            double const grad_ph_norm = (dNdx * ph).norm();
 
-            double grad_ph_norm = (dNdx * ph).normalized();
-            double kappa = dNdx.dot(grad_ph_norm);
-            double da = rrc * epsilon / D;
-            double lambda = tau * D / epsilon / epsilon /
-                            (alpha * (5.0 / 3.0 + sqrt(2) / da));
-
-            auto const x_coord =
-                interpolateXCoordinate<ShapeFunction, ShapeMatricesType>(
-                    _element, N);
+            double kappa = 0;
+            for (int i = 0; i < GlobalDim; ++i)
+            {
+                kappa += dNdx.row(i).dot(f.row(i));
+            }
+            double const da = rrc * epsilon / D;
+            double const lambda = tau * D / epsilon / epsilon /
+                                  (alpha * (5.0 / 3.0 + sqrt(2) / da));
 
             local_M.noalias() += w * N.transpose() * N;
 
@@ -270,20 +264,16 @@ private:
         std::vector<double>& local_b_data,
         LocalCoupledSolutions const& local_coupled_solutions)
     {
-        auto local_c = Eigen::Map<const NodalVectorType>(
+        auto c = Eigen::Map<const NodalVectorType>(
             &local_coupled_solutions.local_coupled_xs[concentration_index],
             concentration_size);
 
-        auto local_ph = Eigen::Map<const NodalVectorType>(
+        auto ph = Eigen::Map<const NodalVectorType>(
             &local_coupled_solutions.local_coupled_xs[phasefield_index],
             phasefield_size);
-        auto local_ph0 = Eigen::Map<const NodalVectorType>(
+        auto ph0 = Eigen::Map<const NodalVectorType>(
             &local_coupled_solutions.local_coupled_xs0[phasefield_index],
             phasefield_size);
-        auto ph = Eigen::Map<typename ShapeMatricesType::template VectorType<
-            phasefield_size> const>(local_ph.data(), phasefield_size);
-
-
 
         auto local_M = MathLib::createZeroedMatrix<LocalBlockMatrixType>(
             local_M_data, concentration_size, concentration_size);
@@ -291,21 +281,7 @@ private:
             local_K_data, concentration_size, concentration_size);
         auto local_b = MathLib::createZeroedVector<LocalSegmentVectorType>(
             local_b_data, concentration_size);
-        /*
-        auto local_M = MathLib::createZeroedMatrix<
-            typename ShapeMatricesType::template MatrixType<
-                concentration_size, concentration_size>>(
-            local_M_data, concentration_size, concentration_size);
 
-        auto local_K = MathLib::createZeroedMatrix<
-            typename ShapeMatricesType::template MatrixType<
-                concentration_size, concentration_size>>(
-            local_K_data, concentration_size, concentration_size);
-
-        auto local_b = MathLib::createZeroedVector<
-            typename ShapeMatricesType::template VectorType<
-                concentration_size>>(local_b_data, concentration_size);
-*/
         ParameterLib::SpatialPosition x_position;
         x_position.setElementID(_element.getID());
 
@@ -318,32 +294,33 @@ private:
 
         for (int ip = 0; ip < n_integration_points; ip++)
         {
-            x_position.setIntegrationPoint(ip);
             auto const& w = _ip_data[ip].integration_weight;
             auto const& N = _ip_data[ip].N;
             auto const& dNdx = _ip_data[ip].dNdx;
 
-            double c_ip = 0.0;
-            double ph_ip = 0.0;
-            double ph_dot = (local_coupled_xs - local_coupled_xs0) / dt;
-            double ddph = 1.0;
-            double grad_ph_norm = (dNdx * ph).normalized();
+            double ph_ip = N.dot(ph);
+            double ph0_ip = N.dot(ph0);
 
-            NumLib::shapeFunctionInterpolate(local_c, N, c_ip);
-            NumLib::shapeFunctionInterpolate(local_ph, N, ph_ip);
+            double const ph_dot = (ph_ip - ph0_ip) / dt;
+            double const ddph =
+                ((dNdx.transpose() * dNdx).diagonal() * ph_ip).sum();
+            double const grad_ph_norm = (dNdx * ph).norm();
 
-            auto const x_coord =
-                interpolateXCoordinate<ShapeFunction, ShapeMatricesType>(
-                    _element, N);
-
-            auto const& b = _process_data.specific_body_force;
+            double source;
+            if (grad_ph_norm < std::numeric_limits<double>::epsilon())
+            {
+                source = 0.0;
+            }
+            else
+            {
+                source = (1.0 + (D * ddph - ph_dot) / rrc / grad_ph_norm);
+            }
 
             local_M.noalias() += w * N.transpose() * N;
 
             local_K.noalias() += D * dNdx.transpose() * dNdx * w;
 
-            local_b.noalias() += 0.0 * w * dNdx.transpose() *
-                alpha * ph_dot * (1.0 + (D * ddph + ph_dot) / rrc / grad_ph_norm);
+            local_b.noalias() += alpha * ph_dot * source * N * w;
         }
     }
 
@@ -354,11 +331,16 @@ private:
         IntegrationPointData<ShapeMatricesType>,
         Eigen::aligned_allocator<IntegrationPointData<ShapeMatricesType>>>
         _ip_data;
-
+    std::vector<
+        typename ShapeMatricesType::ShapeMatrices,
+        Eigen::aligned_allocator<typename ShapeMatricesType::ShapeMatrices>>
+        _shape_matrices_nodes;
     IntegrationMethod _integration_method;
     MeshLib::Element const& _element;
     SecondaryData<typename ShapeMatrices::ShapeType> _secondary_data;
     bool const _is_axially_symmetric;
+    const int _concentration_process_id;
+    const int _phasefield_process_id;
 };
 
 }  // namespace PhaseFieldAcid
