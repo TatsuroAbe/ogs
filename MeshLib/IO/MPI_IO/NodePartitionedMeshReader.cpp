@@ -638,9 +638,17 @@ void NodePartitionedMeshReader::setElements(
                 mesh_elems[i + id_offset_ghost] =
                     new MeshLib::Line(elem_nodes, mat_idx);
                 break;
+            case 3:
+                mesh_elems[i + id_offset_ghost] =
+                    new MeshLib::Line3(elem_nodes, mat_idx);
+                break;
             case 6:
                 mesh_elems[i + id_offset_ghost] =
                     new MeshLib::Quad(elem_nodes, mat_idx);
+                break;
+            case 7:
+                mesh_elems[i + id_offset_ghost] =
+                    new MeshLib::Quad8(elem_nodes, mat_idx);
                 break;
             case 11:
                 mesh_elems[i + id_offset_ghost] =
@@ -665,8 +673,8 @@ void NodePartitionedMeshReader::setElements(
             default:
                 OGS_FATAL(
                     "NodePartitionedMeshReader: construction of element type "
-                    "%d is not implemented.",
-                    e_type);
+                    "%d with id %d is not implemented.",
+                    e_type, i);
         }
     }
 }
