@@ -216,8 +216,13 @@ private:
 
         GlobalDimNodalMatrixType f = GlobalDimNodalMatrixType::Zero(GlobalDim,phasefield_size);
 
-        for (int i = 0; i < _element.getNumberOfNodes(); i++)
-            f.col(i) = (_shape_matrices_nodes[i].dNdx * ph).normalized();
+        for (unsigned i = 0; i < _element.getNumberOfNodes(); i++)
+        {
+            auto const grad = _shape_matrices_nodes[i].dNdx * ph;
+            if (grad.norm() < 1e-15)
+                continue;
+            f.col(i) = grad.normalized();
+        }
 
         ParameterLib::SpatialPosition x_position;
         x_position.setElementID(_element.getID());
@@ -246,9 +251,12 @@ private:
             double const grad_ph_norm = (dNdx * ph).norm();
 
             kappa = 0;
-            for (int i = 0; i < GlobalDim; ++i)
+            if (grad_ph_norm > 1e-15)
             {
-                kappa += dNdx.row(i).dot(f.row(i));
+                for (int i = 0; i < GlobalDim; ++i)
+                {
+                    kappa += dNdx.row(i).dot(f.row(i));
+                }
             }
             double const da = rrc * epsilon / D;
             double const lambda = tau * D / epsilon / epsilon /
