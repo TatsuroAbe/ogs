@@ -36,6 +36,7 @@ struct IntegrationPointData final
 
     double dummy;
     double dummy_prev;
+    double kappa;
 
     void pushBackState() { dummy_prev = dummy; }
 

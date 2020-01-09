@@ -27,7 +27,6 @@ namespace ProcessLib::PhaseFieldAcid
 {
 struct PhaseFieldAcidProcessData
 {
-
     MeshLib::PropertyVector<int> const* const material_ids = nullptr;
     Eigen::VectorXd const specific_body_force;
 
@@ -37,7 +36,7 @@ struct PhaseFieldAcidProcessData
     ParameterLib::Parameter<double> const& epsilon;
     ParameterLib::Parameter<double> const& tau;
 
+    MeshLib::PropertyVector<double>* element_kappa = nullptr;
 };
 
-}  // namespace PhaseFieldAcid
-
+}  // namespace ProcessLib::PhaseFieldAcid

@@ -101,6 +101,10 @@ void PhaseFieldAcidProcess::initializeConcreteProcess(
         mesh.isAxiallySymmetric(), integration_order, _process_data,
         _concentration_process_id, _phasefield_process_id);
 
+    _process_data.element_kappa = MeshLib::getOrCreateMeshProperty<double>(
+        const_cast<MeshLib::Mesh&>(mesh), "kappa_avg",
+        MeshLib::MeshItemType::Cell, 1);
+
     // Initialize local assemblers after all variables have been set.
     GlobalExecutor::executeMemberOnDereferenced(
         &LocalAssemblerInterface::initialize, _local_assemblers,
@@ -234,7 +238,7 @@ void PhaseFieldAcidProcess::preTimestepConcreteProcess(
 
 void PhaseFieldAcidProcess::postTimestepConcreteProcess(
     std::vector<GlobalVector*> const& x, const double t,
-    const double /*delta_t*/, int const process_id)
+    const double dt, int const process_id)
 {
     if (isPhaseFieldProcess(process_id))
     {
@@ -248,6 +252,11 @@ void PhaseFieldAcidProcess::postTimestepConcreteProcess(
 
         ProcessLib::ProcessVariable const& pv =
             getProcessVariables(process_id)[0];
+
+        GlobalExecutor::executeSelectedMemberOnDereferenced(
+            &LocalAssemblerInterface::postTimestep, _local_assemblers,
+            pv.getActiveElementIDs(), getDOFTable(process_id), *x[process_id], t,
+            dt);
     }
 }
 

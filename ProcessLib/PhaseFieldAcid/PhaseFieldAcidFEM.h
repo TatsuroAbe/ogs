@@ -156,10 +156,18 @@ public:
         unsigned const n_integration_points =
             _integration_method.getNumberOfPoints();
 
+        double kappa_avg = 0;
         for (unsigned ip = 0; ip < n_integration_points; ip++)
         {
             _ip_data[ip].pushBackState();
+
+            kappa_avg += _ip_data[ip].kappa;
         }
+
+        (*_process_data.element_kappa)[_element.getID()] =
+            kappa_avg / n_integration_points;
+        DBUG("%d kappa_avg = %g", _element.getID(),
+             (*_process_data.element_kappa)[_element.getID()]);
     }
 
     Eigen::Map<const Eigen::RowVectorXd> getShapeMatrix(
@@ -230,12 +238,14 @@ private:
             auto const& N = _ip_data[ip].N;
             auto const& dNdx = _ip_data[ip].dNdx;
 
+            auto& kappa = _ip_data[ip].kappa;
+
             double c_ip = N.dot(c);
             double ph_ip = N.dot(ph);
 
             double const grad_ph_norm = (dNdx * ph).norm();
 
-            double kappa = 0;
+            kappa = 0;
             for (int i = 0; i < GlobalDim; ++i)
             {
                 kappa += dNdx.row(i).dot(f.row(i));
