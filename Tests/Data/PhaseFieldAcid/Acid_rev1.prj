@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <OpenGeoSysProject>
     <meshes>
-        <mesh>acid_rev3_0.02.vtu</mesh>
-        <mesh>circle_ic_0.02.vtu</mesh>
+        <mesh>acid_rev3.vtu</mesh>
+        <mesh>circle_ic.vtu</mesh>
         <mesh>bar_top.vtu</mesh>
         <mesh>bar_right.vtu</mesh>
     </meshes>
@@ -213,7 +213,7 @@
                     <parameter>concentration_p0p1</parameter>
                 </boundary_condition>
                 <boundary_condition>
-                    <mesh>circle_ic_0.02</mesh>
+                    <mesh>circle_ic</mesh>
                     <type>Dirichlet</type>
                     <component>0</component>
                     <parameter>concentration0</parameter>
@@ -241,7 +241,7 @@
                     <parameter>phasefield_liquid</parameter>
                 </boundary_condition>
                 <boundary_condition>
-                    <mesh>circle_ic_0.02</mesh>
+                    <mesh>circle_ic</mesh>
                     <type>Dirichlet</type>
                     <component>0</component>
                     <parameter>phasefield_solid</parameter>
