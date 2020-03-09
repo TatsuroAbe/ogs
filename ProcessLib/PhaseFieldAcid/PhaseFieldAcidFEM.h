@@ -212,10 +212,13 @@ private:
 
         GlobalDimNodalMatrixType v_at_nodes =
             GlobalDimNodalMatrixType::Zero(GlobalDim, phasefield_size);
+        GlobalDimNodalMatrixType v_at_nodes_normalized =
+            GlobalDimNodalMatrixType::Zero(GlobalDim, phasefield_size);
 
         for (unsigned i = 0; i < _element.getNumberOfNodes(); i++)
         {
             v_at_nodes.col(i) = _shape_matrices_nodes[i].dNdx * ph0;
+            v_at_nodes_normalized.col(i) = v_at_nodes.col(i).normalized();
         }
 
         ParameterLib::SpatialPosition x_position;
@@ -236,8 +239,6 @@ private:
             auto const& w = _ip_data[ip].integration_weight;
             auto const& N = _ip_data[ip].N;
             auto const& dNdx = _ip_data[ip].dNdx;
-
-            auto& kappa = _ip_data[ip].kappa;
 
             double c_ip = N.dot(c);
             double ph_ip = N.dot(ph0);
@@ -262,13 +263,23 @@ private:
             local_K.noalias() +=
                 epsilon * epsilon * dNdx.transpose() * dNdx * w;
 
+            double& kappa_ip = _ip_data[ip].kappa;
+            kappa_ip = 0;
+            if (squared_norm_v_ip > 1e-15)
+            {
+                kappa_ip =
+                    (dNdx * v_at_nodes_normalized.transpose()).diagonal().sum();
+            }
+
             // f(phi) part
             local_b.noalias() +=
                 (1 - ph_ip * ph_ip) * (ph_ip - lambda * c_ip) * N * w;
             // "kappa" part
+            //local_b.noalias() +=
+            //    (N * psi_ip.dot(v_ip) + v_ip.transpose() * dNdx) * epsilon *
+            //    epsilon * w;
             local_b.noalias() +=
-                (N * psi_ip.dot(v_ip) + v_ip.transpose() * dNdx) * epsilon *
-                epsilon * w;
+                kappa_ip * epsilon * epsilon * v_ip.norm() * N * w;
         }
     }
 
