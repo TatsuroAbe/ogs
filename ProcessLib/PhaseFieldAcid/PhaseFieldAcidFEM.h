@@ -206,14 +206,6 @@ private:
         auto local_b = MathLib::createZeroedVector<LocalSegmentVectorType>(
             local_b_data, phasefield_size);
 
-        typename ShapeMatricesType::NodalMatrixType mass =
-            ShapeMatricesType::NodalMatrixType::Zero(phasefield_size,
-                                                     phasefield_size);
-
-        typename ShapeMatricesType::NodalMatrixType laplace =
-            ShapeMatricesType::NodalMatrixType::Zero(phasefield_size,
-                                                     phasefield_size);
-
         GlobalDimNodalMatrixType f = GlobalDimNodalMatrixType::Zero(GlobalDim,phasefield_size);
 
         for (unsigned i = 0; i < _element.getNumberOfNodes(); i++)
