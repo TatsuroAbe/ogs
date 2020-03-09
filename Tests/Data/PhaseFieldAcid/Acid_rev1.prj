@@ -18,6 +18,7 @@
                 <rrc>rrc</rrc>
                 <epsilon>epsilon</epsilon>
                 <tau>tau</tau>
+                <grad_phi_cutoff>1</grad_phi_cutoff>
             </phasefieldacid_parameters>
             <process_variables>
                 <concentration>concentration</concentration>
