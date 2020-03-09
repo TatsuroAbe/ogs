@@ -11,6 +11,7 @@
 #pragma once
 
 #include <memory>
+#include <iostream>
 #include <vector>
 
 #include "IntegrationPointData.h"
@@ -280,6 +281,37 @@ private:
             //    epsilon * w;
             local_b.noalias() +=
                 kappa_ip * epsilon * epsilon * v_ip.norm() * N * w;
+
+            /*
+            if (_element.getID() == 659 && ip == 0)
+            {
+                std::cerr << "phi0 hat " << ph0 << "\n"
+                          << "phi hat " << ph << "\n"
+                          << "phi_ip " << ph_ip << "\n"
+                          << "v_at_nodes " << v_at_nodes << "\n"
+                          << "|v_at_nodes| " << v_at_nodes.norm() << "\n"
+                          << "v_at_nodes_normalized " << v_at_nodes_normalized
+                          << "\n"
+                          << "c_ip " << c_ip << "\n"
+                          << "v_ip " << v_ip << "\n"
+                          << "dNdx " << dNdx << "\n"
+                          << "|v_ip|^2 " << squared_norm_v_ip << "\n"
+                          << "|v_ip| " << v_ip.norm() << "\n"
+                          << "grad_v_ip " << grad_v_ip << "\n"
+                          << "psi_ip " << psi_ip << "\n"
+                          << "kappa_ip " << kappa_ip << "\n"
+                          << "k e^2 |v_ip^ "
+                          << kappa_ip * epsilon * epsilon * v_ip.norm() * N
+                          << "\n"
+                          << " rhs (w*v + gv) "
+                          << (N * psi_ip.dot(v_ip) + v_ip.transpose() * dNdx) *
+                                 epsilon * epsilon
+                          << "\n"
+                          << "f(phi) "
+                          << (1 - ph_ip * ph_ip) * (ph_ip - lambda * c_ip) * N
+                          << "\n";
+            }
+            */
         }
     }
 
