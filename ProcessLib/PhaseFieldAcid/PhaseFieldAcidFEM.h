@@ -219,7 +219,10 @@ private:
         for (unsigned i = 0; i < _element.getNumberOfNodes(); i++)
         {
             v_at_nodes.col(i) = _shape_matrices_nodes[i].dNdx * ph0;
-            v_at_nodes_normalized.col(i) = v_at_nodes.col(i).normalized();
+            if (v_at_nodes.col(i).norm() > _process_data.grad_phi_cutoff)
+            {
+                v_at_nodes_normalized.col(i) = v_at_nodes.col(i).normalized();
+            }
         }
 
         ParameterLib::SpatialPosition x_position;
@@ -250,7 +253,7 @@ private:
 
             GlobalDimVectorType psi_ip =
                 GlobalDimVectorType::Zero(GlobalDim, 1);
-            if (squared_norm_v_ip > 1e-15)
+            if (squared_norm_v_ip > _process_data.grad_phi_cutoff)
             {
                 psi_ip = grad_v_ip * v_ip / squared_norm_v_ip;
             }
@@ -265,12 +268,8 @@ private:
                 epsilon * epsilon * dNdx.transpose() * dNdx * w;
 
             double& kappa_ip = _ip_data[ip].kappa;
-            kappa_ip = 0;
-            if (squared_norm_v_ip > 1e-15)
-            {
-                kappa_ip =
-                    (dNdx * v_at_nodes_normalized.transpose()).diagonal().sum();
-            }
+            kappa_ip =
+                (dNdx * v_at_nodes_normalized.transpose()).diagonal().sum();
 
             // f(phi) part
             local_b.noalias() +=
