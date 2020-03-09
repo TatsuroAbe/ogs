@@ -46,6 +46,7 @@ class PhaseFieldAcidLocalAssembler
     using NodalVectorType = typename ShapeMatricesType::NodalVectorType;
 
     using GlobalDimVectorType = typename ShapeMatricesType::GlobalDimVectorType;
+    using GlobalDimMatrixType = typename ShapeMatricesType::GlobalDimMatrixType;
 
     using GlobalDimNodalMatrixType =
         typename ShapeMatricesType::GlobalDimNodalMatrixType;
@@ -206,14 +207,12 @@ private:
         auto local_b = MathLib::createZeroedVector<LocalSegmentVectorType>(
             local_b_data, phasefield_size);
 
-        GlobalDimNodalMatrixType f = GlobalDimNodalMatrixType::Zero(GlobalDim,phasefield_size);
+        GlobalDimNodalMatrixType v_at_nodes =
+            GlobalDimNodalMatrixType::Zero(GlobalDim, phasefield_size);
 
         for (unsigned i = 0; i < _element.getNumberOfNodes(); i++)
         {
-            auto const grad = _shape_matrices_nodes[i].dNdx * ph;
-            if (grad.norm() < 1e-15)
-                continue;
-            f.col(i) = grad.normalized();
+            v_at_nodes.col(i) = _shape_matrices_nodes[i].dNdx * ph;
         }
 
         ParameterLib::SpatialPosition x_position;
@@ -240,29 +239,33 @@ private:
             double c_ip = N.dot(c);
             double ph_ip = N.dot(ph);
 
-            double const grad_ph_norm = (dNdx * ph).norm();
+            GlobalDimMatrixType const grad_v_ip = dNdx * v_at_nodes.transpose();
+            GlobalDimVectorType const v_ip = dNdx * ph;
+            double const squared_norm_v_ip = v_ip.squaredNorm();
 
-            kappa = 0;
-            if (grad_ph_norm > 1e-15)
+            GlobalDimVectorType psi_ip =
+                GlobalDimVectorType::Zero(GlobalDim, 1);
+            if (squared_norm_v_ip > 1e-15)
             {
-                for (int i = 0; i < GlobalDim; ++i)
-                {
-                    kappa += dNdx.row(i).dot(f.row(i));
-                }
+                psi_ip = grad_v_ip * v_ip / squared_norm_v_ip;
             }
+
             double const da = rrc * epsilon / D;
-            double const lambda = tau * D / epsilon / epsilon /
+            double const lambda = D / epsilon / epsilon /
                                   (alpha * (5.0 / 3.0 + sqrt(2) / da));
 
-            local_M.noalias() += w * N.transpose() * N;
+            local_M.noalias() += w * tau * N.transpose() * N;
 
             local_K.noalias() +=
-                epsilon * epsilon / tau * dNdx.transpose() * dNdx * w;
+                epsilon * epsilon * dNdx.transpose() * dNdx * w;
 
+            // f(phi) part
             local_b.noalias() +=
-                ((1 - ph_ip * ph_ip) * (ph_ip - lambda * c_ip) -
-                 epsilon * epsilon * kappa * grad_ph_norm) *
-                N * w;
+                (1 - ph_ip * ph_ip) * (ph_ip - lambda * c_ip) * N * w;
+            // "kappa" part
+            local_b.noalias() +=
+                (N * psi_ip.dot(v_ip) + v_ip.transpose() * dNdx) * epsilon *
+                epsilon * w;
         }
     }
 
