@@ -298,6 +298,14 @@ private:
         ParameterLib::SpatialPosition x_position;
         x_position.setElementID(_element.getID());
 
+        GlobalDimNodalMatrixType v_at_nodes =
+            GlobalDimNodalMatrixType::Zero(GlobalDim, phasefield_size);
+
+        for (unsigned i = 0; i < _element.getNumberOfNodes(); i++)
+        {
+            v_at_nodes.col(i) = _shape_matrices_nodes[i].dNdx * ph;
+        }
+
         int const n_integration_points =
             _integration_method.getNumberOfPoints();
 
@@ -315,18 +323,15 @@ private:
             double ph0_ip = N.dot(ph0);
 
             double const ph_dot = (ph_ip - ph0_ip) / dt;
-            double const ddph =
-                ((dNdx.transpose() * dNdx).diagonal() * ph_ip).sum();
             double const grad_ph_norm = (dNdx * ph).norm();
 
-            double source;
-            if (grad_ph_norm < std::numeric_limits<double>::epsilon())
+            GlobalDimMatrixType const grad_v_ip = dNdx * v_at_nodes.transpose();
+            double const div_grad_phi_ip = grad_v_ip.diagonal().sum();
+
+            double source = 1.;
+            if (grad_ph_norm > std::numeric_limits<double>::epsilon())
             {
-                source = 0.0;
-            }
-            else
-            {
-                source = (1.0 + (D * ddph - ph_dot) / rrc / grad_ph_norm);
+                source += (D * div_grad_phi_ip - ph_dot) / rrc / grad_ph_norm;
             }
 
             local_M.noalias() += w * N.transpose() * N;
