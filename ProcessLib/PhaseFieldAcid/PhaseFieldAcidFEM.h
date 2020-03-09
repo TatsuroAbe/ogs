@@ -192,6 +192,9 @@ private:
         auto ph = Eigen::Map<const NodalVectorType>(
             &local_coupled_solutions.local_coupled_xs[phasefield_index],
             phasefield_size);
+        auto ph0 = Eigen::Map<const NodalVectorType>(
+            &local_coupled_solutions.local_coupled_xs0[phasefield_index],
+            phasefield_size);
 
         auto c = Eigen::Map<const NodalVectorType>(
             &local_coupled_solutions.local_coupled_xs[concentration_index],
@@ -212,7 +215,7 @@ private:
 
         for (unsigned i = 0; i < _element.getNumberOfNodes(); i++)
         {
-            v_at_nodes.col(i) = _shape_matrices_nodes[i].dNdx * ph;
+            v_at_nodes.col(i) = _shape_matrices_nodes[i].dNdx * ph0;
         }
 
         ParameterLib::SpatialPosition x_position;
@@ -237,10 +240,10 @@ private:
             auto& kappa = _ip_data[ip].kappa;
 
             double c_ip = N.dot(c);
-            double ph_ip = N.dot(ph);
+            double ph_ip = N.dot(ph0);
 
             GlobalDimMatrixType const grad_v_ip = dNdx * v_at_nodes.transpose();
-            GlobalDimVectorType const v_ip = dNdx * ph;
+            GlobalDimVectorType const v_ip = dNdx * ph0;
             double const squared_norm_v_ip = v_ip.squaredNorm();
 
             GlobalDimVectorType psi_ip =
