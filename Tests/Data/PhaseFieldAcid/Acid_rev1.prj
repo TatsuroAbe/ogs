@@ -92,6 +92,7 @@
             </process>
         </processes>
         <output>
+            <output_iteration_results>false</output_iteration_results>
             <variables>
                 <variable>concentration</variable>
                 <variable>phasefield</variable>
