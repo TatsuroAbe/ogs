@@ -143,6 +143,12 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
         "tau", parameters, 1);
     DBUG("Use '%s' as tau.", tau.name.c_str());
 
+    // grad_phi_cutoff
+    auto const grad_phi_cutoff =
+        //! \ogs_file_param_special{prj__processes__process__PHASEFIELD_ACID__phasefieldacid_parameters__grad_phi_cutoff}
+        phasefieldacid_parameters_config.getConfigParameter<double>(
+            "grad_phi_cutoff");
+
     // Specific body force parameter.
     Eigen::VectorXd specific_body_force;
     std::vector<double> const b =
@@ -164,7 +170,8 @@ std::unique_ptr<Process> createPhaseFieldAcidProcess(
                                            alpha,
                                            rrc,
                                            epsilon,
-                                           tau};
+                                           tau,
+                                           grad_phi_cutoff};
 
     SecondaryVariableCollection secondary_variables;
 

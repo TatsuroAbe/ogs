@@ -35,6 +35,7 @@ struct PhaseFieldAcidProcessData
     ParameterLib::Parameter<double> const& rrc;
     ParameterLib::Parameter<double> const& epsilon;
     ParameterLib::Parameter<double> const& tau;
+    double const grad_phi_cutoff;
 
     MeshLib::PropertyVector<double>* element_kappa = nullptr;
 };
