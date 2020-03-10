@@ -60,11 +60,11 @@
                 <time_stepping>
                     <type>FixedTimeStepping</type>
                     <t_initial>0</t_initial>
-                    <t_end>100.0</t_end>
+                    <t_end>10000.0</t_end>
                     <timesteps>
                         <pair>
                             <repeat>100</repeat>
-                            <delta_t>1e-1</delta_t>
+                            <delta_t>1</delta_t>
                         </pair>
                     </timesteps>
                 </time_stepping>
@@ -82,11 +82,11 @@
                 <time_stepping>
                     <type>FixedTimeStepping</type>
                     <t_initial>0</t_initial>
-                    <t_end>100.0</t_end>
+                    <t_end>10000.0</t_end>
                     <timesteps>
                         <pair>
                             <repeat>100</repeat>
-                            <delta_t>1e-1</delta_t>
+                            <delta_t>1</delta_t>
                         </pair>
                     </timesteps>
                 </time_stepping>
