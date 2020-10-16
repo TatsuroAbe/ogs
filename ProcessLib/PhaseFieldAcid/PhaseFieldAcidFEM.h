@@ -278,7 +278,7 @@ private:
             //local_b.noalias() +=
             //    (N * psi_ip.dot(v_ip) + v_ip.transpose() * dNdx) * epsilon *
             //    epsilon * w;
-            local_b.noalias() +=
+            local_b.noalias() -=
                 kappa_ip * epsilon * epsilon * v_ip.norm() * N * w;
 
             /*

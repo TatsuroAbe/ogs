@@ -18,7 +18,7 @@
                 <rrc>rrc</rrc>
                 <epsilon>epsilon</epsilon>
                 <tau>tau</tau>
-                <grad_phi_cutoff>1</grad_phi_cutoff>
+                <grad_phi_cutoff>10</grad_phi_cutoff>
             </phasefieldacid_parameters>
             <process_variables>
                 <concentration>concentration</concentration>
@@ -60,11 +60,11 @@
                 <time_stepping>
                     <type>FixedTimeStepping</type>
                     <t_initial>0</t_initial>
-                    <t_end>10000.0</t_end>
+                    <t_end>100.0</t_end>
                     <timesteps>
                         <pair>
                             <repeat>100</repeat>
-                            <delta_t>1</delta_t>
+                            <delta_t>0.1</delta_t>
                         </pair>
                     </timesteps>
                 </time_stepping>
@@ -82,11 +82,11 @@
                 <time_stepping>
                     <type>FixedTimeStepping</type>
                     <t_initial>0</t_initial>
-                    <t_end>10000.0</t_end>
+                    <t_end>100.0</t_end>
                     <timesteps>
                         <pair>
                             <repeat>100</repeat>
-                            <delta_t>1</delta_t>
+                            <delta_t>0.1</delta_t>
                         </pair>
                     </timesteps>
                 </time_stepping>
@@ -127,12 +127,12 @@
         <parameter>
             <name>rrc</name>
             <type>Constant</type>
-            <value>100.</value>
+            <value>1.</value>
         </parameter>
         <parameter>
             <name>epsilon</name>
             <type>Constant</type>
-            <value>0.00125</value>
+            <value>0.000625</value>
         </parameter>
         <parameter>
             <name>tau</name>
@@ -148,12 +148,12 @@
         <parameter>
             <name>concentration_m0p1</name>
             <type>Constant</type>
-            <values>-0.1 </values>
+            <values>-0.5 </values>
         </parameter>
         <parameter>
             <name>concentration_p0p1</name>
             <type>Constant</type>
-            <values>0.1 </values>
+            <values>0.5 </values>
         </parameter>
         <parameter>
             <name>concentration_ic</name>
